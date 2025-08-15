@@ -61,11 +61,37 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
+  
+  // Handle server startup with proper error handling
+  const startServer = () => {
+    if (process.env.REPLIT_DEPLOYMENT_ID || process.env.NODE_ENV === 'production') {
+      // Production/Replit environment - use 0.0.0.0
+      server.listen(port, '0.0.0.0', () => {
+        log(`serving on 0.0.0.0:${port}`);
+      });
+    } else {
+      // Local development - use localhost to avoid macOS networking issues
+      server.listen(port, 'localhost', () => {
+        log(`serving on localhost:${port}`);
+      });
+    }
+  };
+
+  // Add error handler for server startup issues
+  server.on('error', (err: any) => {
+    if (err.code === 'ENOTSUP' && err.address === '0.0.0.0') {
+      log('0.0.0.0 not supported, trying localhost...');
+      server.listen(port, 'localhost', () => {
+        log(`serving on localhost:${port}`);
+      });
+    } else if (err.code === 'EADDRINUSE') {
+      log(`Port ${port} is already in use. Please try a different port.`);
+      process.exit(1);
+    } else {
+      log(`Server error: ${err.message}`);
+      throw err;
+    }
   });
+
+  startServer();
 })();
