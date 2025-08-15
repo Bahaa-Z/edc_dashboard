@@ -30,6 +30,7 @@ export function ConnectorsTable() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedConnector, setSelectedConnector] = useState<Connector | null>(null);
   const [connectorToDelete, setConnectorToDelete] = useState<Connector | null>(null);
+  const [wizardData, setWizardData] = useState<any>(null);
 
   const { data: connectors = [], isLoading } = useQuery({
     queryKey: ["/api/connectors"],
@@ -61,9 +62,10 @@ export function ConnectorsTable() {
     setShowIntroWizard(true);
   };
 
-  const handleContinueFromWizard = () => {
+  const handleContinueFromWizard = (deploymentData?: any) => {
     setShowIntroWizard(false);
     setSelectedConnector(null);
+    setWizardData(deploymentData);
     setShowAddEditModal(true);
   };
 
@@ -203,8 +205,10 @@ export function ConnectorsTable() {
         onClose={() => {
           setShowAddEditModal(false);
           setSelectedConnector(null);
+          setWizardData(null);
         }}
         connector={selectedConnector}
+        wizardData={wizardData}
       />
 
       <ConfirmDeleteDialog

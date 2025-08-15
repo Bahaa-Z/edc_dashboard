@@ -23,9 +23,10 @@ interface AddEditConnectorModalProps {
   open: boolean;
   onClose: () => void;
   connector?: Connector | null;
+  wizardData?: any;
 }
 
-export function AddEditConnectorModal({ open, onClose, connector }: AddEditConnectorModalProps) {
+export function AddEditConnectorModal({ open, onClose, connector, wizardData }: AddEditConnectorModalProps) {
   const { t } = useApp();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -57,6 +58,24 @@ export function AddEditConnectorModal({ open, onClose, connector }: AddEditConne
       });
       setEditFieldsEnabled(false);
       setYamlContent(generateConnectorYaml(connector));
+    } else if (wizardData?.edc) {
+      // Pre-fill form with wizard data when adding new connector
+      reset({
+        name: wizardData.edc.name,
+        version: wizardData.edc.version,
+        bpn: wizardData.edc.bpn,
+        endpoint: wizardData.edc.endpoint,
+      });
+      setEditFieldsEnabled(true);
+      const tempConnector: Connector = {
+        id: "temp",
+        name: wizardData.edc.name,
+        version: wizardData.edc.version,
+        bpn: wizardData.edc.bpn,
+        endpoint: wizardData.edc.endpoint,
+        status: "Connected",
+      };
+      setYamlContent(generateConnectorYaml(tempConnector));
     } else {
       reset({
         name: "",
@@ -67,7 +86,7 @@ export function AddEditConnectorModal({ open, onClose, connector }: AddEditConne
       setEditFieldsEnabled(true);
       setYamlContent("");
     }
-  }, [connector, reset]);
+  }, [connector, wizardData, reset]);
 
   useEffect(() => {
     // Update YAML when form values change
@@ -128,6 +147,7 @@ export function AddEditConnectorModal({ open, onClose, connector }: AddEditConne
   const handleClose = () => {
     form.reset();
     setEditFieldsEnabled(!connector);
+    setYamlContent("");
     onClose();
   };
 
