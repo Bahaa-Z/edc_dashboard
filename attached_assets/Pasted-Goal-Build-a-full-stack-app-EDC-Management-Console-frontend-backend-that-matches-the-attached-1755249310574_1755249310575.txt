@@ -1,0 +1,135 @@
+Goal: Build a full‑stack app “EDC Management Console” (frontend + backend) that matches the attached mockup 1:1 in layout, interactions, and content. Use ARENA2036 theme.
+
+Tech
+	•	Frontend: React 18, TypeScript, Vite, TailwindCSS, shadcn/ui, React Query, Zod, Lucide icons
+	•	Backend: Node.js + Express, SQLite (via Prisma) for persistence
+	•	i18n: simple EN/DE toggle (store selection in localStorage)
+	•	Env vars: VITE_API_BASE, VITE_SDE_URL, VITE_DEFAULT_EDC_URL, VITE_DEFAULT_HOSTNAME, VITE_DEFAULT_API_KEY
+
+Theme (ARENA2036)
+	•	Primary orange: #F28C00
+	•	Use soft cards, rounded corners, subtle shadows, white/gray backgrounds.
+	•	Buttons:
+	•	Primary (orange): bg #F28C00, hover darken
+	•	Secondary/outline as shadcn defaults
+
+Pages / Layout (match mockup)
+
+Global Shell
+	•	Left Sidebar (fixed):
+	•	App title: “EDC Management Console”
+	•	Nav buttons (stacked, card-like):
+	•	Dashboard (active by default)
+	•	SDE
+	•	Monitor
+	•	Process Logs
+	•	EDC Transactions
+	•	Dataspace Settings (at bottom section)
+	•	Top Bar (right side):
+	•	User dropdown: “User”, items: “Logout”
+	•	Language toggle: EN / DE (two-letter buttons aligned right)
+
+Dashboard (main page)
+	•	Header: “Dashboard”
+	•	Section Overview with 6 KPI cards in a 3x2 grid (rounded rectangles):
+	•	Number of connectors: <count>
+	•	Assets: <count>
+	•	Policies: <count>
+	•	Contracts: <count>
+	•	Contract Agreements: <count>
+	•	Data Offers: <count>
+	•	Section Manage Your Connectors:
+	•	Button on right: Add EDC
+	•	Table with columns: Name, Version, BPN, Status, Endpoint, Actions
+	•	Each row has Edit and Delete buttons in Actions
+	•	Delete confirmation dialog: “Are you sure to delete the connector?” Buttons: Yes / No
+	•	Intro Wizard (modal) that opens from “Add EDC” or first‑time entry (see below)
+	•	Intro copy area (“Introduction / What the user can do using this page?”)
+	•	A horizontal 4‑step diagram with labeled steps:
+	1.	Submodel Service
+	2.	Digital Twin Registry
+	3.	EDC
+	4.	EDC Registration
+	•	Buttons: Cancel (left) and Continue (right)
+
+Edit/Add Connector (modal)
+	•	Title: “Edit your Connector”
+	•	Checkbox top-right: Edit fields
+	•	Fields (4 stacked inputs; leave labels blank in mock, but implement labels in code):
+	•	Name
+	•	Version
+	•	BPN
+	•	Endpoint
+	•	YAML Viewer (large textarea or Monaco in read-only mode)
+	•	Buttons bottom: Cancel (left) and Save (right)
+	•	This modal is used for Add (empty) and Edit (prefilled) connector.
+
+Dataspace Settings (page)
+	•	Title: “Dataspace Settings”
+	•	Intro section with the same “Introduction / What the user can do using this page?” text area.
+	•	Checkbox Edit fields (when unchecked, fields are read-only)
+	•	Fields (stacked inputs):
+	•	Wallet Url
+	•	Portal Url
+	•	Central Idp Url
+	•	Bottom buttons: Cancel (left) and Save (right)
+
+SDE page (open in same app)
+	•	Show a short intro and a button “Open SDE in new tab” that opens VITE_SDE_URL (default http://localhost:3002)
+	•	(KPI cards can be reused)
+
+Monitor, Process Logs, EDC Transactions pages
+	•	Simple placeholder pages with appropriate titles (to be extended later)
+
+Interactions & Data
+
+Connectors (EDC runtimes)
+	•	List shown in “Manage Your Connectors” table
+	•	Add EDC opens the Intro Wizard first:
+	•	Cancel → close and do nothing
+	•	Continue → open the Edit/Add Connector modal in create mode
+	•	Save in modal:
+	•	Validate required fields (Name, Version, BPN, Endpoint) via Zod
+	•	Generate and show YAML preview of connector data in the YAML viewer
+	•	Persist to backend (SQLite)
+	•	Edit opens the same modal in edit mode (prefilled, editable when “Edit fields” checked)
+	•	Delete shows confirmation dialog; if confirmed, delete via backend then refresh list.
+
+KPIs on Dashboard
+	•	Load via React Query from backend endpoint /api/stats:
+	•	{ connectors, assets, policies, contracts, contractAgreements, dataOffers }
+	•	Backend can return mocked values initially.
+
+Dataspace Settings
+	•	Load/save to backend (GET/POST /api/settings/dataspace) persisted in SQLite.
+	•	“Edit fields” checkbox toggles read-only vs. editable state for inputs.
+
+User / Auth
+	•	Mock login page (separate route /login) with background image and ARENA logo.
+	•	After login, redirect to dashboard.
+	•	Logout clears session and returns to login.
+
+Language (EN/DE)
+	•	Simple translation object for top bar and key labels (no full i18n needed).
+	•	Toggle persists in localStorage.
+
+YAML Viewer
+	•	Convert the connector object to YAML (use yaml npm package on frontend or backend) and display in the viewer within the modal.
+
+Backend API (Express)
+
+Create these endpoints with SQLite persistence (Prisma model Connector, Settings):
+	•	POST /api/login → mock login, returns session ok
+	•	GET /api/stats → numbers for the 6 KPI cards
+	•	Connectors:
+	•	GET /api/connectors → list
+	•	POST /api/connectors → create
+	•	PUT /api/connectors/:id → update
+	•	DELETE /api/connectors/:id → delete
+	•	Dataspace settings:
+	•	GET /api/settings/dataspace
+	•	POST /api/settings/dataspace (upsert)
+	•	SDE proxy (mock OK for now):
+	•	GET /api/sde/stats → return { assets, policies, contracts, catalogs } (used later)
+
+Return JSON. Validate input with Zod on the server for safety.
