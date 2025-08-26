@@ -11,6 +11,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import type { CheckedState } from "@radix-ui/react-checkbox";
+
 
 export default function DataspaceSettings() {
   const { t } = useApp();
@@ -108,7 +110,7 @@ export default function DataspaceSettings() {
               <Checkbox
                 id="editDataspaceFields"
                 checked={editFieldsEnabled}
-                onCheckedChange={setEditFieldsEnabled}
+                onCheckedChange={(checked: CheckedState) => setEditFieldsEnabled(checked === true)}
                 data-testid="edit-dataspace-fields-checkbox"
               />
               <Label htmlFor="editDataspaceFields" className="text-sm text-gray-600 cursor-pointer">

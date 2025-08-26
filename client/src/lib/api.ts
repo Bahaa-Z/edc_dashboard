@@ -1,53 +1,78 @@
+// client/src/lib/api.ts
 import { apiRequest } from "@/lib/queryClient";
-import type { Connector, InsertConnector, DataspaceSettings, InsertDataspaceSettings, Stats, LoginCredentials } from "@shared/schema";
+import type {
+  Connector,
+  InsertConnector,
+  DataspaceSettings,
+  InsertDataspaceSettings,
+  Stats,
+  LoginCredentials,
+} from "@shared/schema";
+
+/** sicheres JSON-Parsing */
+async function safeJson<T>(res: Response): Promise<T> {
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("application/json")) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `Expected JSON but got ${res.status} ${res.statusText}`);
+  }
+  return (await res.json()) as T;
+}
 
 export const api = {
-  // Auth
+  // ---------- Auth (Keycloak via Backend) ----------
+  // Backend-Route: app.use("/api/auth", authRoutes)
   login: async (credentials: LoginCredentials) => {
-    const response = await apiRequest("POST", "/api/login", credentials);
-    return response.json();
+    const res = await apiRequest("POST", "/api/auth/login", credentials);
+    return res.json() as Promise<{ user: { id: string; username: string } }>;
   },
 
-  // Stats
+  // ---------- Stats ----------
   getStats: async (): Promise<Stats> => {
-    const response = await apiRequest("GET", "/api/stats");
-    return response.json();
+    const res = await apiRequest("GET", "/api/stats");
+    return safeJson<Stats>(res);
   },
 
-  // Connectors
+  // ---------- SDE Stats (optional mit Fallback) ----------
+  getSdeStats: async (): Promise<Stats> => {
+    try {
+      const res = await apiRequest("GET", "/api/sde/stats");
+      return safeJson<Stats>(res);
+    } catch {
+      const res2 = await apiRequest("GET", "/api/stats");
+      return safeJson<Stats>(res2);
+    }
+  },
+
+  // ---------- Connectors ----------
   getConnectors: async (): Promise<Connector[]> => {
-    const response = await apiRequest("GET", "/api/connectors");
-    return response.json();
+    const res = await apiRequest("GET", "/api/connectors");
+    return safeJson<Connector[]>(res);
   },
 
   createConnector: async (connector: InsertConnector): Promise<Connector> => {
-    const response = await apiRequest("POST", "/api/connectors", connector);
-    return response.json();
+    const res = await apiRequest("POST", "/api/connectors", connector);
+    return safeJson<Connector>(res);
   },
 
   updateConnector: async (id: string, updates: Partial<InsertConnector>): Promise<Connector> => {
-    const response = await apiRequest("PUT", `/api/connectors/${id}`, updates);
-    return response.json();
+    const res = await apiRequest("PUT", `/api/connectors/${encodeURIComponent(id)}`, updates);
+    return safeJson<Connector>(res);
   },
 
   deleteConnector: async (id: string): Promise<void> => {
-    await apiRequest("DELETE", `/api/connectors/${id}`);
+    const res = await apiRequest("DELETE", `/api/connectors/${encodeURIComponent(id)}`);
+    if (!res.ok) throw new Error(`Delete failed ${res.status}`);
   },
 
-  // Dataspace Settings
+  // ---------- Dataspace Settings ----------
   getDataspaceSettings: async (): Promise<DataspaceSettings> => {
-    const response = await apiRequest("GET", "/api/settings/dataspace");
-    return response.json();
+    const res = await apiRequest("GET", "/api/settings/dataspace");
+    return safeJson<DataspaceSettings>(res);
   },
 
   saveDataspaceSettings: async (settings: InsertDataspaceSettings): Promise<DataspaceSettings> => {
-    const response = await apiRequest("POST", "/api/settings/dataspace", settings);
-    return response.json();
-  },
-
-  // SDE
-  getSdeStats: async () => {
-    const response = await apiRequest("GET", "/api/sde/stats");
-    return response.json();
+    const res = await apiRequest("POST", "/api/settings/dataspace", settings);
+    return safeJson<DataspaceSettings>(res);
   },
 };

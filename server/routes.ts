@@ -3,27 +3,64 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertConnectorSchema, insertDataspaceSettingsSchema, loginSchema } from "@shared/schema";
 import { z } from "zod";
+import { Router } from "express";
+import { requireAuth } from "./auth-middleware";
+
+
+
+const router = Router();
+
+// GET alle Connectoren
+router.get("/connectors", async (_req, res) => {
+  const list = await storage.getConnectors();
+  res.json(list);
+});
+
+// POST neuen Connector
+router.post("/connectors", async (req, res) => {
+  const created = await storage.createConnector(req.body);
+  res.status(201).json(created);
+});
+
+// PATCH Status ändern
+router.patch("/connectors/:id/status", async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body as { status: any };
+  const updated = await storage.setConnectorStatus(id, status);
+  if (!updated) return res.status(404).json({ message: "Not found" });
+  res.json(updated);
+});
+
+// DELETE Connector
+router.delete("/connectors/:id", async (req, res) => {
+  const ok = await storage.deleteConnector(req.params.id);
+  if (!ok) return res.status(404).json({ message: "Not found" });
+  res.status(204).end();
+});
+
+export default router;
+
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
-  app.post("/api/login", async (req, res) => {
-    try {
-      const { username, password } = loginSchema.parse(req.body);
+  // app.post("/api/login", async (req, res) => {
+  //   try {
+  //     const { username, password } = loginSchema.parse(req.body);
       
-      const user = await storage.getUserByUsername(username);
-      if (!user || user.password !== password) {
-        return res.status(401).json({ message: "Invalid credentials" });
-      }
+  //     const user = await storage.getUserByUsername(username);
+  //     if (!user || user.password !== password) {
+  //       return res.status(401).json({ message: "Invalid credentials" });
+  //     }
       
-      // In a real app, you'd set up proper session management
-      res.json({ user: { id: user.id, username: user.username } });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid request data", errors: error.errors });
-      }
-      res.status(500).json({ message: "Internal server error" });
-    }
-  });
+  //     // In a real app, you'd set up proper session management
+  //     res.json({ user: { id: user.id, username: user.username } });
+  //   } catch (error) {
+  //     if (error instanceof z.ZodError) {
+  //       return res.status(400).json({ message: "Invalid request data", errors: error.errors });
+  //     }
+  //     res.status(500).json({ message: "Internal server error" });
+  //   }
+  // });
 
   // Stats route
   app.get("/api/stats", async (req, res) => {
@@ -132,4 +169,5 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
   return httpServer;
+  
 }

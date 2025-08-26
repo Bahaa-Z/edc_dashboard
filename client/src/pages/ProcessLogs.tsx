@@ -12,15 +12,24 @@ export default function ProcessLogs() {
         </h1>
       </div>
       
-      <Card className="bg-white shadow-sm border border-gray-200">
-        <CardContent className="p-6">
-          <div className="text-center">
-            <p className="text-gray-600" data-testid="process-logs-placeholder">
-              {t("placeholderPage")}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      <Card className="bg-card shadow-card">
+          <CardContent className="p-8 text-center">
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-arena-gray-900">
+                Process Logs & Audit Trail
+              </h3>
+              <p className="text-arena-gray-500">
+                View detailed logs of all dataspace processes, connector activities, 
+                and system events. Filter and search through historical data.
+              </p>
+              <div className="text-sm text-arena-gray-400">
+                Coming soon...
+              </div>
+            </div>
+          </CardContent>
+        </Card>
     </div>
   );
 }
+
+

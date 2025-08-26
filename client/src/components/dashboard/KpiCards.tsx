@@ -6,10 +6,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export function KpiCards() {
   const { t } = useApp();
-  
-  const { data: stats, isLoading } = useQuery({
-    queryKey: ["/api/stats"],
-    queryFn: api.getStats,
+
+  const { data: stats, isLoading, error } = useQuery({
+    queryKey: ["/api/sde/stats"],
+    queryFn: api.getSdeStats, // 👈 lädt SDE + fallback
   });
 
   const kpiItems = [
@@ -36,9 +36,17 @@ export function KpiCards() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="text-sm text-red-600">
+        Failed to load KPIs from SDE
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {kpiItems.map((item, index) => (
+      {kpiItems.map((item) => (
         <Card key={item.key} className="bg-white shadow-sm border border-gray-200">
           <CardContent className="p-6">
             <div className="flex justify-between items-start">

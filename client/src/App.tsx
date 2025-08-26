@@ -1,3 +1,4 @@
+// client/src/App.tsx
 import { Switch, Route, Redirect } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -16,75 +17,51 @@ import NotFound from "@/pages/not-found";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useApp();
-  
-  if (!isAuthenticated) {
-    return <Redirect to="/login" />;
-  }
-  
-  return <AppLayout>{children}</AppLayout>;
-}
-
-function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useApp();
-  
-  if (isAuthenticated) {
-    return <Redirect to="/" />;
-  }
-  
+  if (!isAuthenticated) return <Redirect to="/login" />;
   return <>{children}</>;
 }
-
+function PublicRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useApp();
+  if (isAuthenticated) return <Redirect to="/" />;
+  return <>{children}</>;
+}
 function Router() {
   return (
     <Switch>
       <Route path="/login">
-        <PublicRoute>
-          <Login />
-        </PublicRoute>
+        <PublicRoute><Login /></PublicRoute>
       </Route>
-      
+
       <Route path="/">
-        <ProtectedRoute>
-          <Dashboard />
-        </ProtectedRoute>
+        <ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>
       </Route>
-      
+
       <Route path="/dataspace-settings">
-        <ProtectedRoute>
-          <DataspaceSettings />
-        </ProtectedRoute>
+        <ProtectedRoute><AppLayout><DataspaceSettings /></AppLayout></ProtectedRoute>
       </Route>
-      
+
       <Route path="/sde">
-        <ProtectedRoute>
-          <Sde />
-        </ProtectedRoute>
+        <ProtectedRoute><AppLayout><Sde /></AppLayout></ProtectedRoute>
       </Route>
-      
+
       <Route path="/monitor">
-        <ProtectedRoute>
-          <Monitor />
-        </ProtectedRoute>
+        <ProtectedRoute><AppLayout><Monitor /></AppLayout></ProtectedRoute>
       </Route>
-      
+
       <Route path="/process-logs">
-        <ProtectedRoute>
-          <ProcessLogs />
-        </ProtectedRoute>
+        <ProtectedRoute><AppLayout><ProcessLogs /></AppLayout></ProtectedRoute>
       </Route>
-      
+
       <Route path="/edc-transactions">
-        <ProtectedRoute>
-          <EdcTransactions />
-        </ProtectedRoute>
+        <ProtectedRoute><AppLayout><EdcTransactions /></AppLayout></ProtectedRoute>
       </Route>
-      
+
       <Route component={NotFound} />
     </Switch>
   );
 }
 
-function App() {
+export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -96,5 +73,3 @@ function App() {
     </QueryClientProvider>
   );
 }
-
-export default App;

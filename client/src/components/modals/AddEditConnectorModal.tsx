@@ -174,7 +174,7 @@ export function AddEditConnectorModal({ open, onClose, connector, wizardData }: 
                 <Checkbox
                   id="editFields"
                   checked={editFieldsEnabled}
-                  onCheckedChange={setEditFieldsEnabled}
+                  onCheckedChange={(checked) => setEditFieldsEnabled(checked === true)}
                   data-testid="edit-fields-checkbox"
                 />
                 <Label htmlFor="editFields" className="text-sm text-gray-600 cursor-pointer">

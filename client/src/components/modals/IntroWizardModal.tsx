@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { useApp } from "@/context/AppContext";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Check } from "lucide-react";
 
 interface IntroWizardModalProps {
@@ -26,6 +26,8 @@ interface StepData {
   edcRegistration: { registryUrl: string; certificatePath: string };
 }
 
+type StepKey = keyof StepData;
+
 export function IntroWizardModal({ open, onClose, onContinue }: IntroWizardModalProps) {
   const { t } = useApp();
   const [currentStep, setCurrentStep] = useState(1);
@@ -36,54 +38,91 @@ export function IntroWizardModal({ open, onClose, onContinue }: IntroWizardModal
     edcRegistration: { registryUrl: "", certificatePath: "" },
   });
 
-  const steps = [
-    { number: 1, label: t("submodelService"), completed: false },
-    { number: 2, label: t("digitalTwinRegistry"), completed: false },
-    { number: 3, label: t("edc"), completed: false },
-    { number: 4, label: t("edcRegistration"), completed: false },
-  ];
+  // Track "skipped" steps
+  const [skipped, setSkipped] = useState<Record<StepKey, boolean>>({
+    submodelService: false,
+    digitalTwinRegistry: false,
+    edc: false,
+    edcRegistration: false,
+  });
 
-  const updateStepData = (step: keyof StepData, field: string, value: string) => {
-    setStepData(prev => ({
+  const steps = useMemo(
+    () => [
+      { number: 1, label: t("submodelService"), key: "submodelService" as StepKey },
+      { number: 2, label: t("digitalTwinRegistry"), key: "digitalTwinRegistry" as StepKey },
+      { number: 3, label: t("edc"), key: "edc" as StepKey },
+      { number: 4, label: t("edcRegistration"), key: "edcRegistration" as StepKey },
+    ],
+    [t]
+  );
+
+  const updateStepData = (step: StepKey, field: string, value: string) => {
+    setStepData((prev) => ({
       ...prev,
-      [step]: { ...prev[step], [field]: value }
+      [step]: { ...prev[step], [field]: value },
     }));
+    // Wenn der User tippt, Schritt als "nicht übersprungen" markieren
+    if (skipped[step]) {
+      setSkipped((prev) => ({ ...prev, [step]: false }));
+    }
   };
 
   const isStepComplete = (stepNumber: number): boolean => {
-    switch (stepNumber) {
-      case 1:
-        return stepData.submodelService.url.trim() !== "" && stepData.submodelService.apiKey.trim() !== "";
-      case 2:
-        return stepData.digitalTwinRegistry.url.trim() !== "" && stepData.digitalTwinRegistry.credentials.trim() !== "";
-      case 3:
-        return stepData.edc.name.trim() !== "" && stepData.edc.version.trim() !== "" && 
-               stepData.edc.bpn.trim() !== "" && stepData.edc.endpoint.trim() !== "";
-      case 4:
-        return stepData.edcRegistration.registryUrl.trim() !== "" && stepData.edcRegistration.certificatePath.trim() !== "";
+    const stepKey = steps[stepNumber - 1].key;
+    if (skipped[stepKey]) return true;
+
+    switch (stepKey) {
+      case "submodelService":
+        return (
+          stepData.submodelService.url.trim() !== "" &&
+          stepData.submodelService.apiKey.trim() !== ""
+        );
+      case "digitalTwinRegistry":
+        return (
+          stepData.digitalTwinRegistry.url.trim() !== "" &&
+          stepData.digitalTwinRegistry.credentials.trim() !== ""
+        );
+      case "edc":
+        return (
+          stepData.edc.name.trim() !== "" &&
+          stepData.edc.version.trim() !== "" &&
+          stepData.edc.bpn.trim() !== "" &&
+          stepData.edc.endpoint.trim() !== ""
+        );
+      case "edcRegistration":
+        return (
+          stepData.edcRegistration.registryUrl.trim() !== "" &&
+          stepData.edcRegistration.certificatePath.trim() !== ""
+        );
       default:
         return false;
     }
   };
 
   const canProceedToNext = () => isStepComplete(currentStep);
-  const allStepsComplete = () => steps.every((_, index) => isStepComplete(index + 1));
+
+  // Du kannst hier festlegen, was zum Abschluss minimal nötig ist.
+  // Beispiel: EDC muss ausgefüllt oder übersprungen sein; Registration optional.
+  const canFinish = () => {
+    const edcDone = isStepComplete(3);
+    // Wenn du Registrierung verpflichtend machen willst, dekommentiere:
+    // const edcRegDone = isStepComplete(4);
+    // return edcDone && edcRegDone;
+
+    return edcDone; // Registrierung optional/überspringbar
+  };
 
   const handleNext = () => {
-    if (canProceedToNext()) {
-      if (currentStep < 4) {
-        setCurrentStep(currentStep + 1);
-      } else if (allStepsComplete()) {
-        // Pass the collected data to the parent component
-        onContinue(stepData);
-      }
+    if (!canProceedToNext()) return;
+    if (currentStep < steps.length) {
+      setCurrentStep((s) => s + 1);
+    } else if (canFinish()) {
+      onContinue(stepData);
     }
   };
 
   const handlePrevious = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    }
+    if (currentStep > 1) setCurrentStep((s) => s - 1);
   };
 
   const handleClose = () => {
@@ -94,8 +133,24 @@ export function IntroWizardModal({ open, onClose, onContinue }: IntroWizardModal
       edc: { name: "", version: "", bpn: "", endpoint: "" },
       edcRegistration: { registryUrl: "", certificatePath: "" },
     });
+    setSkipped({
+      submodelService: false,
+      digitalTwinRegistry: false,
+      edc: false,
+      edcRegistration: false,
+    });
     onClose();
   };
+
+  const skipCurrentStep = () => {
+    const stepKey = steps[currentStep - 1].key;
+    setSkipped((prev) => ({ ...prev, [stepKey]: true }));
+    if (currentStep < steps.length) {
+      setCurrentStep((s) => s + 1);
+    }
+  };
+
+  const jumpToEdc = () => setCurrentStep(3);
 
   const renderStepContent = () => {
     switch (currentStep) {
@@ -224,9 +279,9 @@ export function IntroWizardModal({ open, onClose, onContinue }: IntroWizardModal
               <h3 className="text-lg font-semibold text-gray-800 mb-4">{t("edcRegistration")}</h3>
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="registry-url">Registry URL</Label>
+                  <Label htmlFor="registration-url">Registry URL</Label>
                   <Input
-                    id="registry-url"
+                    id="registration-url"
                     type="url"
                     placeholder="https://edc-registry.example.com"
                     value={stepData.edcRegistration.registryUrl}
@@ -262,75 +317,89 @@ export function IntroWizardModal({ open, onClose, onContinue }: IntroWizardModal
             EDC Deployment Wizard
           </DialogTitle>
           <DialogDescription>
-            Follow these steps to deploy your EDC connector. Complete each step before proceeding to the next.
+            Follow these steps to deploy your EDC. You can skip steps or jump directly to EDC.
           </DialogDescription>
         </DialogHeader>
-        
+
+        {/* Stepper */}
         <div className="mb-6">
-          {/* Progress Steps */}
-          <div className="flex items-center justify-between mb-8" data-testid="process-steps">
-            {steps.map((step, index) => (
-              <div key={step.number} className="flex items-center">
-                <div className="flex flex-col items-center">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg mb-2 ${
-                    currentStep === step.number
-                      ? "bg-[var(--arena-orange)] text-white" 
-                      : isStepComplete(step.number)
-                      ? "bg-green-500 text-white"
-                      : "bg-gray-200 text-gray-600"
-                  }`}>
-                    {isStepComplete(step.number) && currentStep !== step.number ? (
-                      <Check className="h-6 w-6" />
-                    ) : (
-                      step.number
-                    )}
-                  </div>
-                  <span className="text-sm font-medium text-center max-w-20">
-                    {step.label}
-                  </span>
+          <div className="flex items-center justify-between mb-6" data-testid="process-steps">
+            {steps.map((step, idx) => {
+              const done = isStepComplete(step.number);
+              const isActive = currentStep === step.number;
+              return (
+                <div key={step.number} className="flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep(step.number)}
+                    className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg mb-2 border transition
+                      ${isActive ? "bg-[var(--arena-orange)] text-white border-[var(--arena-orange)]"
+                        : done ? "bg-green-500 text-white border-green-500"
+                        : "bg-gray-200 text-gray-600 border-gray-300"}`}
+                    title={step.label}
+                  >
+                    {done && !isActive ? <Check className="h-6 w-6" /> : step.number}
+                  </button>
+                  {idx < steps.length - 1 && (
+                    <div
+                      className={`flex-1 h-px mx-4 min-w-8 ${done ? "bg-green-500" : "bg-gray-300"}`}
+                    />
+                  )}
                 </div>
-                {index < steps.length - 1 && (
-                  <div className={`flex-1 h-px mx-4 min-w-8 ${
-                    isStepComplete(step.number) ? "bg-green-500" : "bg-gray-300"
-                  }`}></div>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          {/* Current Step Content */}
-          <div className="mb-6">
-            {renderStepContent()}
-          </div>
-        </div>
-        
-        <div className="flex justify-between">
-          <div className="flex space-x-2">
+          {/* Quick actions */}
+          <div className="flex gap-2 mb-4">
+            <Button variant="outline" onClick={jumpToEdc}>
+              Skip to EDC
+            </Button>
             <Button
               variant="outline"
-              onClick={handleClose}
-              data-testid="wizard-cancel-button"
+              onClick={skipCurrentStep}
+              className="ml-auto"
             >
+              Skip this step
+            </Button>
+          </div>
+
+          {/* Content */}
+          <div className="mb-6">{renderStepContent()}</div>
+        </div>
+
+        <div className="flex justify-between">
+          <div className="flex space-x-2">
+            <Button variant="outline" onClick={handleClose} data-testid="wizard-cancel-button">
               {t("cancel")}
             </Button>
             {currentStep > 1 && (
-              <Button
-                variant="outline"
-                onClick={handlePrevious}
-                data-testid="wizard-previous-button"
-              >
+              <Button variant="outline" onClick={handlePrevious} data-testid="wizard-previous-button">
                 Previous
               </Button>
             )}
           </div>
-          <Button
-            onClick={handleNext}
-            disabled={!canProceedToNext()}
-            className="bg-[var(--arena-orange)] hover:bg-[var(--arena-orange-hover)] text-white disabled:opacity-50 disabled:cursor-not-allowed"
-            data-testid="wizard-next-button"
-          >
-            {currentStep < 4 ? "Next" : allStepsComplete() ? "Complete Deployment" : "Complete Step"}
-          </Button>
+
+          {/* Next / Complete */}
+          {currentStep < steps.length ? (
+            <Button
+              onClick={handleNext}
+              disabled={!canProceedToNext()}
+              className="bg-[var(--arena-orange)] hover:bg-[var(--arena-orange-hover)] text-white disabled:opacity-50"
+              data-testid="wizard-next-button"
+            >
+              Next
+            </Button>
+          ) : (
+            <Button
+              onClick={() => onContinue(stepData)}
+              disabled={!canFinish()}
+              className="bg-[var(--arena-orange)] hover:bg-[var(--arena-orange-hover)] text-white disabled:opacity-50"
+              data-testid="wizard-complete-button"
+            >
+              Complete Deployment
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>
