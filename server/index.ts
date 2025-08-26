@@ -18,7 +18,9 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(
   cors({
-    origin: "http://localhost:5173", // wenn du SPA separat auf 5173 lädst
+    origin: process.env.NODE_ENV === "development" 
+      ? ["http://localhost:5173", "http://0.0.0.0:5000"] 
+      : true,
     credentials: true,
   })
 );
@@ -56,4 +58,4 @@ if (app.get("env") === "development") {
 }
 
 const port = parseInt(process.env.PORT || "5000", 10);
-httpServer.listen(port, "localhost", () => log(`serving on http://localhost:${port}`));
+httpServer.listen(port, "0.0.0.0", () => log(`serving on http://0.0.0.0:${port}`));
