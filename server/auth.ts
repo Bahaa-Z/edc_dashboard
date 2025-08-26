@@ -57,7 +57,7 @@ router.post("/login", async (req: Request, res: Response) => {
     const accessToken = await getPasswordToken({
       tokenUrl,
       clientId,
-      //clientSecret?, // optional
+      clientSecret, // optional for public clients
       username,
       password,
       scope: "openid",
