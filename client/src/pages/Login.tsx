@@ -11,9 +11,11 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useApp } from "@/context/AppContext";
 import { api } from "@/lib/api";
+// Keycloak import commented out to avoid initialization issues in development
+// import { login as keycloakLogin, keycloak, getUserProfile } from "@/auth/keycloak";
 
 import { loginSchema, type LoginCredentials } from "@shared/schema";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, LogIn } from "lucide-react";
 
 export default function Login() {
   const { t, loginUser } = useApp();
@@ -53,6 +55,14 @@ export default function Login() {
 
   const onSubmit = (values: LoginCredentials) => {
     loginMutation.mutate(values);
+  };
+
+  const handleKeycloakLogin = async () => {
+    toast({
+      title: "Info",
+      description: "Verwenden Sie bitte das Standard-Login-Formular für die Keycloak-Authentifizierung.",
+      variant: "default",
+    });
   };
 
   return (
@@ -162,6 +172,29 @@ export default function Login() {
                 {loginMutation.isPending ? "Signing in..." : t("signIn")}
               </Button>
             </form>
+
+            {/* Keycloak Login Option */}
+            <div className="mt-6">
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-gray-200" />
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="bg-white px-2 text-gray-500">oder</span>
+                </div>
+              </div>
+              
+              <Button
+                type="button"
+                onClick={handleKeycloakLogin}
+                variant="outline"
+                className="w-full mt-4 border-gray-300 text-gray-700 hover:bg-gray-50"
+                data-testid="keycloak-login-button"
+              >
+                <LogIn className="w-4 h-4 mr-2" />
+                Keycloak-Login (Backend-Auth)
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

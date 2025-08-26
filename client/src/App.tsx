@@ -14,6 +14,7 @@ import Monitor from "@/pages/Monitor";
 import ProcessLogs from "@/pages/ProcessLogs";
 import EdcTransactions from "@/pages/EdcTransactions";
 import NotFound from "@/pages/not-found";
+import { useEffect, useState } from "react";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useApp();

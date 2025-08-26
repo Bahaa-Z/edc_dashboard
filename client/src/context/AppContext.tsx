@@ -1,6 +1,8 @@
 // client/src/context/AppContext.tsx
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { translations, type Language, type TranslationKey } from "@/lib/translations";
+// Keycloak logout commented out to avoid initialization issues
+// import { logout as keycloakLogout, keycloak } from "@/auth/keycloak";
 
 export interface User {
   id?: string;
@@ -14,7 +16,7 @@ interface AppContextType {
   isAuthenticated: boolean;
   loginUser: (user: User, token?: string | null, rememberMe?: boolean) => void;
   setUser: (user: User | null) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   authToken: string | null;
 
   // i18n
@@ -110,11 +112,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     persistAuth(u, authToken, rememberMe);
   };
 
-  const logout = () => {
+  const logout = async () => {
     setUserState(null);
     setAuthToken(null);
     setRememberMe(false);
     clearAllAuthStorage();
+    
+    // Keycloak logout would be handled here if direct integration was enabled
+    // Currently using backend-based authentication with session cookies
   };
 
   const isAuthenticated = !!user;

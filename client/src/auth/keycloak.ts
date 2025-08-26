@@ -13,14 +13,28 @@ const keycloakConfig: KeycloakConfig = {
 
 export const keycloak = new Keycloak(keycloakConfig);
 
+let keycloakInitialized = false;
+
 export async function initKeycloak(): Promise<boolean> {
-  const authenticated = await keycloak.init({
-    onLoad: "check-sso",     // "login-required" wenn du sofort redirecten willst
-    pkceMethod: "S256",
-    checkLoginIframe: false,
-    enableLogging: true,
-  });
-  return authenticated;
+  if (keycloakInitialized) {
+    return keycloak.authenticated || false;
+  }
+  
+  try {
+    const authenticated = await keycloak.init({
+      onLoad: "check-sso",
+      pkceMethod: "S256", 
+      checkLoginIframe: false,
+      enableLogging: false, // Reduce console noise
+      redirectUri: window.location.origin + window.location.pathname,
+    });
+    keycloakInitialized = true;
+    return authenticated;
+  } catch (error) {
+    console.error('Keycloak init error:', error);
+    keycloakInitialized = true; // Mark as initialized to prevent retries
+    return false;
+  }
 }
 
 export function login() {
