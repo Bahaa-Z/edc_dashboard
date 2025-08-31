@@ -27,6 +27,15 @@ export async function getPasswordToken(params: PasswordTokenParams): Promise<str
   body.set("password", password);
   if (scope) body.set("scope", scope);
 
+  // Debug: Log the request parameters (without sensitive data)
+  console.log("[TOKEN] Request parameters:");
+  console.log("- grant_type: password");
+  console.log("- client_id:", clientId);
+  console.log("- username:", username);
+  console.log("- scope:", scope);
+  console.log("- has_password:", !!password);
+  console.log("- has_client_secret:", !!clientSecret);
+
   const res = await fetch(tokenUrl, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
