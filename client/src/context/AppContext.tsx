@@ -1,8 +1,7 @@
 // client/src/context/AppContext.tsx
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { translations, type Language, type TranslationKey } from "@/lib/translations";
-// Keycloak logout commented out to avoid initialization issues
-// import { logout as keycloakLogout, keycloak } from "@/auth/keycloak";
+// REMOVED: All keycloak-js imports removed per requirements
 
 export interface User {
   id?: string;

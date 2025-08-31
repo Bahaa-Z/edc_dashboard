@@ -20,11 +20,20 @@ async function safeJson<T>(res: Response): Promise<T> {
 }
 
 export const api = {
-  // ---------- Auth (Keycloak via Backend) ----------
-  // Backend-Route: app.use("/api/auth", authRoutes)
+  // ---------- Auth (Session-Cookie based) ----------
   login: async (credentials: LoginCredentials) => {
     const res = await apiRequest("POST", "/api/auth/login", credentials);
     return res.json() as Promise<{ user: { id: string; username: string } }>;
+  },
+
+  logout: async () => {
+    const res = await apiRequest("POST", "/api/auth/logout", {});
+    return res.json() as Promise<{ message: string }>;
+  },
+
+  getMe: async () => {
+    const res = await apiRequest("GET", "/api/auth/me", undefined);
+    return res.json() as Promise<{ user: { id: string; username: string; email?: string } }>;
   },
 
   // ---------- Stats ----------

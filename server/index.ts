@@ -19,7 +19,7 @@ app.use(cookieParser());
 app.use(
   cors({
     origin: process.env.NODE_ENV === "development" 
-      ? ["http://localhost:5173", "http://0.0.0.0:5000"] 
+      ? ["http://localhost:5173", "http://0.0.0.0:5000", "http://localhost:5000"] 
       : true,
     credentials: true,
   })

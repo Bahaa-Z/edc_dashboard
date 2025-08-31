@@ -5,6 +5,23 @@ import { getPasswordToken, decodeToken, isTokenValid } from "./token";
 
 const router = express.Router();
 
+// Environment configuration with defaults
+const keycloakConfig = {
+  KC_URL: process.env.KC_URL || "https://centralidp.arena2036-x.de/auth",
+  KC_REALM: process.env.KC_REALM || "CX-Central", 
+  KC_CLIENT_ID: process.env.KC_CLIENT_ID || "CX-SDE",
+  KC_CLIENT_SECRET: process.env.KC_CLIENT_SECRET,
+};
+
+// Validate required secrets (those without defaults)
+const requiredSecrets = ["KC_CLIENT_ID", "KC_CLIENT_SECRET"];
+for (const key of requiredSecrets) {
+  const value = process.env[key];
+  if (!value || value.trim() === "") {
+    throw new Error(`Missing required environment variable: ${key}`);
+  }
+}
+
 // Body-Validierung
 const loginBodySchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -37,27 +54,15 @@ router.post("/login", async (req: Request, res: Response) => {
 
   const { username, password, rememberMe = false } = body;
 
-  // ENV robust lesen + prüfen
-  const tokenUrl = (process.env.KC_TOKEN_URL || "").trim();
-  const clientId = (process.env.KC_CLIENT_ID || "").trim();
-  // Public-Client → Secret kann leer sein -> zu undefined normalisieren
-  const clientSecret = ((process.env.KC_CLIENT_SECRET || "").trim() || undefined) as
-    | string
-    | undefined;
-
-  if (!tokenUrl || !clientId) {
-    return res.status(500).json({ message: "Keycloak config missing on server." });
-  }
-  if (!clientId) {
-    return res.status(500).json({ message: "KC_CLIENT_ID missing on server" });
-  }
+  // Build token URL
+  const tokenUrl = `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}/protocol/openid-connect/token`;
 
   try {
     // Password Grant gegen Keycloak
     const accessToken = await getPasswordToken({
       tokenUrl,
-      clientId,
-      clientSecret, // optional for public clients
+      clientId: keycloakConfig.KC_CLIENT_ID,
+      clientSecret: keycloakConfig.KC_CLIENT_SECRET!,
       username,
       password,
       scope: "openid",
@@ -79,10 +84,33 @@ router.post("/login", async (req: Request, res: Response) => {
     });
 
     return res.json({ user });
-} catch (e: any) {
+  } catch (e: any) {
     console.error("[LOGIN] error:", e?.message, e?.stack);
     return res.status(401).json({ message: e?.message ?? "Login failed (Keycloak)" });
   }
+});
+
+// POST /api/auth/logout
+router.post("/logout", (req: Request, res: Response) => {
+  res.clearCookie("edc_session");
+  return res.json({ message: "Logged out successfully" });
+});
+
+// GET /api/auth/me
+router.get("/me", (req: Request, res: Response) => {
+  const token = req.cookies?.edc_session as string | undefined;
+  
+  if (!token) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  if (!isTokenValid(token)) {
+    res.clearCookie("edc_session");
+    return res.status(401).json({ message: "Token expired" });
+  }
+
+  const user = parseUserFromToken(token);
+  return res.json({ user });
 });
 
 export default router;

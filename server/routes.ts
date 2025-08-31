@@ -42,28 +42,13 @@ export default router;
 
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth routes
-  // app.post("/api/login", async (req, res) => {
-  //   try {
-  //     const { username, password } = loginSchema.parse(req.body);
-      
-  //     const user = await storage.getUserByUsername(username);
-  //     if (!user || user.password !== password) {
-  //       return res.status(401).json({ message: "Invalid credentials" });
-  //     }
-      
-  //     // In a real app, you'd set up proper session management
-  //     res.json({ user: { id: user.id, username: user.username } });
-  //   } catch (error) {
-  //     if (error instanceof z.ZodError) {
-  //       return res.status(400).json({ message: "Invalid request data", errors: error.errors });
-  //     }
-  //     res.status(500).json({ message: "Internal server error" });
-  //   }
-  // });
+  // Health check endpoint (no auth required)
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
 
-  // Stats route
-  app.get("/api/stats", async (req, res) => {
+  // Stats route (protected)
+  app.get("/api/stats", requireAuth, async (req, res) => {
     try {
       const stats = await storage.getStats();
       res.json(stats);
@@ -72,8 +57,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Connector routes
-  app.get("/api/connectors", async (req, res) => {
+  // Connector routes (protected)
+  app.get("/api/connectors", requireAuth, async (req, res) => {
     try {
       const connectors = await storage.getConnectors();
       res.json(connectors);
@@ -82,7 +67,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/connectors", async (req, res) => {
+  app.post("/api/connectors", requireAuth, async (req, res) => {
     try {
       const connectorData = insertConnectorSchema.parse(req.body);
       const connector = await storage.createConnector(connectorData);
@@ -95,7 +80,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/connectors/:id", async (req, res) => {
+  app.put("/api/connectors/:id", requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const updates = insertConnectorSchema.partial().parse(req.body);
@@ -114,7 +99,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/connectors/:id", async (req, res) => {
+  app.delete("/api/connectors/:id", requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const deleted = await storage.deleteConnector(id);
@@ -129,8 +114,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Dataspace settings routes
-  app.get("/api/settings/dataspace", async (req, res) => {
+  // Dataspace settings routes (protected)
+  app.get("/api/settings/dataspace", requireAuth, async (req, res) => {
     try {
       const settings = await storage.getDataspaceSettings();
       res.json(settings || { walletUrl: "", portalUrl: "", centralIdpUrl: "" });
@@ -139,7 +124,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/settings/dataspace", async (req, res) => {
+  app.post("/api/settings/dataspace", requireAuth, async (req, res) => {
     try {
       const settingsData = insertDataspaceSettingsSchema.parse(req.body);
       const settings = await storage.upsertDataspaceSettings(settingsData);
@@ -152,8 +137,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // SDE proxy route
-  app.get("/api/sde/stats", async (req, res) => {
+  // SDE proxy route (protected)
+  app.get("/api/sde/stats", requireAuth, async (req, res) => {
     try {
       // Mock SDE stats for now
       res.json({
