@@ -13,14 +13,16 @@ const keycloakConfig = {
   KC_CLIENT_SECRET: process.env.KC_CLIENT_SECRET,
 };
 
-// Validate required secrets (those without defaults)
-const requiredSecrets = ["KC_CLIENT_ID", "KC_CLIENT_SECRET"];
-for (const key of requiredSecrets) {
+// Validate required environment variables  
+const requiredEnvVars = ["KC_CLIENT_ID"];
+for (const key of requiredEnvVars) {
   const value = process.env[key];
   if (!value || value.trim() === "") {
     throw new Error(`Missing required environment variable: ${key}`);
   }
 }
+
+console.log("[AUTH] Using Public Client configuration (no client secret)");
 
 // Body-Validierung
 const loginBodySchema = z.object({
@@ -65,11 +67,11 @@ router.post("/login", async (req: Request, res: Response) => {
   console.log("- Has Client Secret:", !!keycloakConfig.KC_CLIENT_SECRET);
 
   try {
-    // Password Grant gegen Keycloak
+    // Password Grant gegen Keycloak (ohne Client-Secret für Public Client)
     const accessToken = await getPasswordToken({
       tokenUrl,
       clientId: keycloakConfig.KC_CLIENT_ID,
-      clientSecret: keycloakConfig.KC_CLIENT_SECRET!,
+      clientSecret: undefined, // Public Client - kein Secret senden
       username,
       password,
       scope: "openid",
