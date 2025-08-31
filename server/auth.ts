@@ -61,17 +61,44 @@ router.post("/login", async (req: Request, res: Response) => {
   console.log("- Client ID:", keycloakConfig.KC_CLIENT_ID);
   console.log("- Username:", username);
   console.log("- Has Client Secret:", !!keycloakConfig.KC_CLIENT_SECRET);
+  
+  // Test different username formats
+  const alternativeUsernames = [
+    username, // Original: devaji.patil@arena2036.de
+    username.split('@')[0], // Just: devaji.patil
+    username.toLowerCase(), // Lowercase version
+  ];
+  
+  console.log("- Alternative usernames to try:", alternativeUsernames);
 
   try {
-    // Password Grant gegen Keycloak (ohne Client-Secret für Public Client)
-    const accessToken = await getPasswordToken({
-      tokenUrl,
-      clientId: keycloakConfig.KC_CLIENT_ID,
-      clientSecret: undefined, // Public Client - kein Secret senden
-      username,
-      password,
-      scope: "openid",
-    });
+    // Try different username formats
+    let accessToken: string | null = null;
+    let lastError: any = null;
+    
+    for (const testUsername of alternativeUsernames) {
+      try {
+        console.log(`[LOGIN] Trying username: ${testUsername}`);
+        accessToken = await getPasswordToken({
+          tokenUrl,
+          clientId: keycloakConfig.KC_CLIENT_ID,
+          clientSecret: undefined, // Public Client - kein Secret senden
+          username: testUsername,
+          password,
+          scope: "openid",
+        });
+        console.log(`[LOGIN] SUCCESS with username: ${testUsername}`);
+        break; // Success - exit loop
+      } catch (error: any) {
+        console.log(`[LOGIN] FAILED with username: ${testUsername} - ${error.message}`);
+        lastError = error;
+        continue; // Try next username format
+      }
+    }
+    
+    if (!accessToken) {
+      throw lastError || new Error("All username formats failed");
+    }
     console.log("[LOGIN] token acquired, length:", accessToken?.length);
 
     if (!isTokenValid(accessToken)) {
