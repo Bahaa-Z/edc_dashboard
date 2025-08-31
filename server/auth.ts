@@ -13,13 +13,9 @@ const keycloakConfig = {
   KC_CLIENT_SECRET: process.env.KC_CLIENT_SECRET,
 };
 
-// Validate required environment variables  
-const requiredEnvVars = ["KC_CLIENT_ID"];
-for (const key of requiredEnvVars) {
-  const value = process.env[key];
-  if (!value || value.trim() === "") {
-    throw new Error(`Missing required environment variable: ${key}`);
-  }
+// Info: Using default Keycloak configuration
+if (!process.env.KC_CLIENT_ID) {
+  console.log("[AUTH] Using default KC_CLIENT_ID: CX-SDE");
 }
 
 console.log("[AUTH] Using Public Client configuration (no client secret)");
