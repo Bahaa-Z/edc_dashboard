@@ -1,0 +1,43 @@
+- Token URL: https://centralidp.arena2036-x.de/auth/realms/CX-Central/protocol/openid-connect/token
+- Client ID: CX-SDE
+- Username: devaji.patil@arena2036.de
+- Has Client Secret: false
+- Alternative usernames to try: [
+  'devaji.patil@arena2036.de',
+  'devaji.patil',
+  'devaji.patil@arena2036.de'
+]
+[LOGIN] Trying username: devaji.patil@arena2036.de
+[TOKEN] Request parameters:
+- grant_type: password
+- client_id: CX-SDE
+- username: devaji.patil@arena2036.de
+- scope: openid
+- has_password: true
+- has_client_secret: false
+[TOKEN] KC response 401 {"error":"invalid_grant","error_description":"Invalid user credentials"}
+[LOGIN] FAILED with username: devaji.patil@arena2036.de - {"error":"invalid_grant","error_description":"Invalid user credentials"}
+[LOGIN] Trying username: devaji.patil
+[TOKEN] Request parameters:
+- grant_type: password
+- client_id: CX-SDE
+- username: devaji.patil
+- scope: openid
+- has_password: true
+- has_client_secret: false
+[TOKEN] KC response 401 {"error":"invalid_grant","error_description":"Invalid user credentials"}
+[LOGIN] FAILED with username: devaji.patil - {"error":"invalid_grant","error_description":"Invalid user credentials"}
+[LOGIN] Trying username: devaji.patil@arena2036.de
+[TOKEN] Request parameters:
+- grant_type: password
+- client_id: CX-SDE
+- username: devaji.patil@arena2036.de
+- scope: openid
+- has_password: true
+- has_client_secret: false
+[TOKEN] KC response 401 {"error":"invalid_grant","error_description":"Invalid user credentials"}
+[LOGIN] FAILED with username: devaji.patil@arena2036.de - {"error":"invalid_grant","error_description":"Invalid user credentials"}
+[LOGIN] error: {"error":"invalid_grant","error_description":"Invalid user credentials"} Error: {"error":"invalid_grant","error_description":"Invalid user credentials"}
+    at getPasswordToken (/Users/bahaa/Downloads/arena_emc/server/token.ts:48:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async <anonymous> (/Users/bahaa/Downloads/arena_emc/server/auth.ts:82:23)
