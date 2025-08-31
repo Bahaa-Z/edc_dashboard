@@ -57,6 +57,13 @@ router.post("/login", async (req: Request, res: Response) => {
   // Build token URL
   const tokenUrl = `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}/protocol/openid-connect/token`;
 
+  // Debug logging (ohne sensitive Daten)
+  console.log("[LOGIN] Debug Info:");
+  console.log("- Token URL:", tokenUrl);
+  console.log("- Client ID:", keycloakConfig.KC_CLIENT_ID);
+  console.log("- Username:", username);
+  console.log("- Has Client Secret:", !!keycloakConfig.KC_CLIENT_SECRET);
+
   try {
     // Password Grant gegen Keycloak
     const accessToken = await getPasswordToken({
