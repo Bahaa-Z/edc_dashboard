@@ -5,12 +5,12 @@ import { getPasswordToken, decodeToken, isTokenValid } from "./token";
 
 const router = express.Router();
 
-// Environment configuration - Using CX-SDE for user login (Public Client)
+// Environment configuration - Using CX-EDC with client credentials (WORKAROUND)
 const keycloakConfig = {
   KC_URL: process.env.KC_URL || "https://centralidp.arena2036-x.de/auth",
   KC_REALM: process.env.KC_REALM || "CX-Central", 
-  KC_CLIENT_ID: process.env.KC_CLIENT_ID || "CX-SDE",
-  KC_CLIENT_SECRET: undefined, // CX-SDE is a Public Client - no secret needed
+  KC_CLIENT_ID: process.env.KC_CLIENT_ID || "CX-EDC",
+  KC_CLIENT_SECRET: process.env.KC_CLIENT_SECRET_EDC || "kwe2FC3EXDPUuUEoVhI6igUnRAmzkuwN",
 };
 
 // Debug configuration
@@ -74,11 +74,12 @@ router.post("/login", async (req: Request, res: Response) => {
     // Add more users as needed
   };
 
-  // CRITICAL: Password verification needed
+  // CRITICAL: CORS/Client configuration issue suspected
   console.log("[LOGIN] CRITICAL: Both username formats failed with same error");
-  console.log("[LOGIN] This indicates the PASSWORD is incorrect!");
+  console.log("[LOGIN] This could be CORS/Web Origins or Client configuration issue!");
   console.log("[LOGIN] Current password attempt length:", password?.length);
-  console.log("[LOGIN] Please verify the correct password for user:", username);
+  console.log("[LOGIN] Backend running on: 0.0.0.0:5000");
+  console.log("[LOGIN] Keycloak Web Origins should include: http://localhost:5000");
   
   // Try with UUID format (most likely correct format)
   const mappedUsername = emailToUsernameMap[username.toLowerCase()] || username;
