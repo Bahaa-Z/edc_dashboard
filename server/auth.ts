@@ -10,7 +10,7 @@ const keycloakConfig = {
   KC_URL: process.env.KC_URL || "https://centralidp.arena2036-x.de/auth",
   KC_REALM: process.env.KC_REALM || "CX-Central", 
   KC_CLIENT_ID: process.env.KC_CLIENT_ID || "CX-EDC",
-  KC_CLIENT_SECRET: process.env.KC_CLIENT_SECRET_EDC, // New client secret
+  KC_CLIENT_SECRET: process.env.KC_CLIENT_SECRET_EDC || "kwe2FC3EXDPUuUEoVhI6igUnRAmzkuwN", // Fallback for local development
 };
 
 // Debug environment variables
