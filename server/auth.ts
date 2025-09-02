@@ -5,30 +5,26 @@ import { getPasswordToken, decodeToken, isTokenValid } from "./token";
 
 const router = express.Router();
 
-// Environment configuration with new CX-EDC client
+// Environment configuration - Using CX-SDE for user login (Public Client)
 const keycloakConfig = {
   KC_URL: process.env.KC_URL || "https://centralidp.arena2036-x.de/auth",
   KC_REALM: process.env.KC_REALM || "CX-Central", 
-  KC_CLIENT_ID: process.env.KC_CLIENT_ID || "CX-EDC",
-  KC_CLIENT_SECRET: process.env.KC_CLIENT_SECRET_EDC || "kwe2FC3EXDPUuUEoVhI6igUnRAmzkuwN", // Fallback for local development
+  KC_CLIENT_ID: process.env.KC_CLIENT_ID || "CX-SDE",
+  KC_CLIENT_SECRET: undefined, // CX-SDE is a Public Client - no secret needed
 };
 
-// Debug environment variables
-console.log("[AUTH] Environment Debug:");
-console.log("- KC_CLIENT_SECRET_EDC exists:", !!process.env.KC_CLIENT_SECRET_EDC);
-console.log("- KC_CLIENT_SECRET_EDC length:", process.env.KC_CLIENT_SECRET_EDC?.length || 0);
-console.log("- keycloakConfig.KC_CLIENT_SECRET:", !!keycloakConfig.KC_CLIENT_SECRET);
+// Debug configuration
+console.log("[AUTH] Client Configuration:");
+console.log("- KC_CLIENT_ID:", keycloakConfig.KC_CLIENT_ID);
+console.log("- KC_CLIENT_SECRET:", keycloakConfig.KC_CLIENT_SECRET ? "SET" : "NOT_SET");
+console.log("- Client Type:", keycloakConfig.KC_CLIENT_SECRET ? "Confidential" : "Public");
 
-// Info: Using new CX-EDC client configuration
+// Info: Using CX-SDE client configuration for user authentication
 if (!process.env.KC_CLIENT_ID) {
-  console.log("[AUTH] Using default KC_CLIENT_ID: CX-EDC");
+  console.log("[AUTH] Using default KC_CLIENT_ID: CX-SDE (Public Client)");
 }
 
-if (keycloakConfig.KC_CLIENT_SECRET) {
-  console.log("[AUTH] Using Confidential Client configuration (with client secret)");
-} else {
-  console.log("[AUTH] Using Public Client configuration (no client secret)");
-}
+console.log("[AUTH] Using Public Client configuration - CX-SDE for user login");
 
 // Body-Validierung
 const loginBodySchema = z.object({
