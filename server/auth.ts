@@ -5,12 +5,12 @@ import { getPasswordToken, decodeToken, isTokenValid } from "./token";
 
 const router = express.Router();
 
-// Environment configuration - Using CX-EDC with Service Account (FINAL SOLUTION)
+// Environment configuration - Back to CX-SDE and fix Password Grant
 const keycloakConfig = {
   KC_URL: process.env.KC_URL || "https://centralidp.arena2036-x.de/auth",
   KC_REALM: process.env.KC_REALM || "CX-Central", 
-  KC_CLIENT_ID: process.env.KC_CLIENT_ID || "CX-EDC",
-  KC_CLIENT_SECRET: process.env.KC_CLIENT_SECRET_EDC || "kwe2FC3EXDPUuUEoVhI6igUnRAmzkuwN",
+  KC_CLIENT_ID: process.env.KC_CLIENT_ID || "CX-SDE",
+  KC_CLIENT_SECRET: undefined, // CX-SDE is Public Client
 };
 
 // Debug configuration
@@ -74,70 +74,97 @@ router.post("/login", async (req: Request, res: Response) => {
     // Add more users as needed
   };
 
-  // FINAL SOLUTION: Use CX-EDC Service Account (backend-only auth)
-  console.log("[LOGIN] FINAL APPROACH: Using CX-EDC Service Account");
+  // FOCUS ON CX-SDE: Try alternative approaches for Password Grant
+  console.log("[LOGIN] FIXING CX-SDE Password Grant");
   console.log("- Client ID:", keycloakConfig.KC_CLIENT_ID);
-  console.log("- Using Client-Credentials Grant (Service Account)");
-  console.log("- This provides backend-only authentication without user passwords");
+  console.log("- User credentials are CORRECT (verified with other app)");
+  console.log("- Testing different request formats...");
   
-  try {
-    // Get service account token using client_credentials
-    const clientCredentialsBody = new URLSearchParams();
-    clientCredentialsBody.set("grant_type", "client_credentials");
-    clientCredentialsBody.set("client_id", keycloakConfig.KC_CLIENT_ID);
-    clientCredentialsBody.set("client_secret", keycloakConfig.KC_CLIENT_SECRET!);
-    clientCredentialsBody.set("scope", "openid profile email");
-
-    console.log("[LOGIN] Requesting service account token...");
-    const response = await fetch(tokenUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: clientCredentialsBody.toString(),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("[LOGIN] Service account error:", errorText);
-      throw new Error(`Service account authentication failed: ${errorText}`);
+  // Force UUID format since it worked in the other app
+  const uuidUsername = emailToUsernameMap[username.toLowerCase()] || username;
+  console.log("- Using working UUID format:", uuidUsername);
+  
+  // Try different scopes and request formats
+  const attempts = [
+    { scope: "openid", description: "Basic OpenID scope" },
+    { scope: "openid profile email", description: "Full scopes" },
+    { scope: undefined, description: "No scope" },
+    { scope: "profile email", description: "Without openid" },
+  ];
+  
+  let accessToken: string | null = null;
+  let successAttempt = "";
+  
+  for (const attempt of attempts) {
+    try {
+      console.log(`[LOGIN] Attempt: ${attempt.description} (scope: ${attempt.scope || 'none'})`);
+      
+      const body = new URLSearchParams();
+      body.set("grant_type", "password");
+      body.set("client_id", keycloakConfig.KC_CLIENT_ID);
+      body.set("username", uuidUsername);
+      body.set("password", password);
+      if (attempt.scope) {
+        body.set("scope", attempt.scope);
+      }
+      
+      console.log("- Request body:", body.toString());
+      
+      const response = await fetch(tokenUrl, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Accept": "application/json"
+        },
+        body: body.toString(),
+      });
+      
+      const responseText = await response.text();
+      console.log(`- Response status: ${response.status}`);
+      console.log(`- Response body: ${responseText}`);
+      
+      if (response.ok) {
+        const tokenData = JSON.parse(responseText);
+        if (tokenData.access_token) {
+          accessToken = tokenData.access_token;
+          successAttempt = attempt.description;
+          console.log(`[LOGIN] SUCCESS with ${attempt.description}!`);
+          break;
+        }
+      }
+    } catch (error: any) {
+      console.log(`[LOGIN] Failed with ${attempt.description}:`, error?.message);
     }
-
-    const tokenData = await response.json() as { access_token?: string };
-    if (!tokenData.access_token) {
-      throw new Error("No access token in service account response");
-    }
-
-    const accessToken = tokenData.access_token;
-    console.log("[LOGIN] Service account authentication successful!");
-    console.log("- Token length:", accessToken.length);
-
-    if (!isTokenValid(accessToken)) {
-      return res.status(401).json({ message: "Invalid token received" });
-    }
-
-    // Create user object for service account
-    const user = {
-      id: "service-account-cx-edc",
-      username: username, // Keep original username for display
-      email: username.includes("@") ? username : "service@arena2036.de"
-    };
-
-    // Session-Cookie setzen (HttpOnly)
-    res.cookie("edc_session", accessToken, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : undefined, // 30 Tage oder Session
-    });
-
-    console.log("[LOGIN] Login successful - service account session created");
-    return res.json({ user });
-  } catch (error: any) {
-    console.error("[LOGIN] Service account authentication failed:", error?.message);
-    return res.status(401).json({ 
-      message: "Authentication failed",
-      details: "Service account error"
-    });
   }
+  
+  if (!accessToken) {
+    console.log("[LOGIN] All CX-SDE attempts failed. Possible solutions:");
+    console.log("1. Check Keycloak Admin Console: CX-SDE Client Settings");
+    console.log("2. Ensure 'Direct Access Grants Enabled' is ON");
+    console.log("3. Check 'Access Type' is set to 'public' or 'confidential'");
+    console.log("4. Verify user is assigned to CX-SDE client");
+    throw new Error("CX-SDE Password Grant not supported - check Keycloak configuration");
+  }
+  
+  console.log(`[LOGIN] CX-SDE Success with: ${successAttempt}`);
+
+  if (!isTokenValid(accessToken)) {
+    return res.status(401).json({ message: "Invalid token received" });
+  }
+
+  // Parse user from token
+  const user = parseUserFromToken(accessToken);
+
+  // Session-Cookie setzen (HttpOnly)
+  res.cookie("edc_session", accessToken, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : undefined, // 30 Tage oder Session
+  });
+
+  console.log("[LOGIN] CX-SDE Login successful!");
+  return res.json({ user });
 });
 
 // POST /api/auth/logout
