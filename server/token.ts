@@ -35,6 +35,8 @@ export async function getPasswordToken(params: PasswordTokenParams): Promise<str
   console.log("- scope:", scope);
   console.log("- has_password:", !!password);
   console.log("- has_client_secret:", !!clientSecret);
+  console.log("- client_secret_length:", clientSecret ? clientSecret.length : 0);
+  console.log("- full_request_body:", body.toString());
 
   const res = await fetch(tokenUrl, {
     method: "POST",
