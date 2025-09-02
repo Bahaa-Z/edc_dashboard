@@ -5,20 +5,24 @@ import { getPasswordToken, decodeToken, isTokenValid } from "./token";
 
 const router = express.Router();
 
-// Environment configuration with defaults
+// Environment configuration with new CX-EDC client
 const keycloakConfig = {
   KC_URL: process.env.KC_URL || "https://centralidp.arena2036-x.de/auth",
   KC_REALM: process.env.KC_REALM || "CX-Central", 
-  KC_CLIENT_ID: process.env.KC_CLIENT_ID || "CX-SDE",
-  KC_CLIENT_SECRET: process.env.KC_CLIENT_SECRET,
+  KC_CLIENT_ID: process.env.KC_CLIENT_ID || "CX-EDC",
+  KC_CLIENT_SECRET: process.env.KC_CLIENT_SECRET_EDC, // New client secret
 };
 
-// Info: Using default Keycloak configuration
+// Info: Using new CX-EDC client configuration
 if (!process.env.KC_CLIENT_ID) {
-  console.log("[AUTH] Using default KC_CLIENT_ID: CX-SDE");
+  console.log("[AUTH] Using default KC_CLIENT_ID: CX-EDC");
 }
 
-console.log("[AUTH] Using Public Client configuration (no client secret)");
+if (keycloakConfig.KC_CLIENT_SECRET) {
+  console.log("[AUTH] Using Confidential Client configuration (with client secret)");
+} else {
+  console.log("[AUTH] Using Public Client configuration (no client secret)");
+}
 
 // Body-Validierung
 const loginBodySchema = z.object({
@@ -52,17 +56,12 @@ router.post("/login", async (req: Request, res: Response) => {
 
   const { username, password, rememberMe = false } = body;
 
-  // Test different Keycloak URL formats based on user's working auth URL
-  const possibleTokenUrls = [
-    `https://centralidp.arena2036-x.de/auth/realms/${keycloakConfig.KC_REALM}/protocol/openid-connect/token`, // Based on user's auth URL
-    `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}/protocol/openid-connect/token`, // Original config
-    `https://centralidp.arena2036-x.de/realms/${keycloakConfig.KC_REALM}/protocol/openid-connect/token`, // Without /auth/
-  ];
+  // Using confirmed working URL
+  const tokenUrl = `https://centralidp.arena2036-x.de/auth/realms/${keycloakConfig.KC_REALM}/protocol/openid-connect/token`;
   
-  console.log("- Testing URLs:", possibleTokenUrls);
-
   // Debug logging (ohne sensitive Daten)
   console.log("[LOGIN] Debug Info:");
+  console.log("- Token URL:", tokenUrl);
   console.log("- Client ID:", keycloakConfig.KC_CLIENT_ID);
   console.log("- Username:", username);
   console.log("- Has Client Secret:", !!keycloakConfig.KC_CLIENT_SECRET);
@@ -73,81 +72,25 @@ router.post("/login", async (req: Request, res: Response) => {
     // Add more users as needed
   };
 
-  // Test different username formats including UUID mapping
-  const alternativeUsernames = [
-    emailToUsernameMap[username.toLowerCase()] || username, // UUID if email is mapped
-    username, // Original: devaji.patil@arena2036.de
-    username.split('@')[0], // Just: devaji.patil
-    username.toLowerCase(), // Lowercase version
-  ].filter((u, i, arr) => arr.indexOf(u) === i); // Remove duplicates
+  // Use UUID if email is mapped, otherwise use original username
+  const mappedUsername = emailToUsernameMap[username.toLowerCase()] || username;
   
-  console.log("- Alternative usernames to try:", alternativeUsernames);
+  console.log("- Mapped username:", mappedUsername);
 
   try {
-    // Try different URL and username combinations
-    let accessToken: string | null = null;
-    let lastError: any = null;
-    let successUrl: string | null = null;
-    let successUsername: string | null = null;
+    // Single login attempt with correct client configuration
+    console.log(`[LOGIN] Attempting login with ${keycloakConfig.KC_CLIENT_SECRET ? 'Confidential' : 'Public'} client`);
     
-    // Test each URL with the main username first
-    for (const testUrl of possibleTokenUrls) {
-      try {
-        console.log(`[LOGIN] Trying URL: ${testUrl} with username: ${username}`);
-        accessToken = await getPasswordToken({
-          tokenUrl: testUrl,
-          clientId: keycloakConfig.KC_CLIENT_ID,
-          clientSecret: undefined, // Public Client - kein Secret senden
-          username: username,
-          password,
-          scope: "openid",
-        });
-        console.log(`[LOGIN] SUCCESS with URL: ${testUrl} and username: ${username}`);
-        successUrl = testUrl;
-        successUsername = username;
-        break; // Success - exit loop
-      } catch (error: any) {
-        console.log(`[LOGIN] FAILED with URL: ${testUrl} - ${error.message}`);
-        lastError = error;
-        continue; // Try next URL
-      }
-    }
+    const accessToken = await getPasswordToken({
+      tokenUrl,
+      clientId: keycloakConfig.KC_CLIENT_ID,
+      clientSecret: keycloakConfig.KC_CLIENT_SECRET, // Now using client secret for confidential client
+      username: mappedUsername,
+      password,
+      scope: "openid",
+    });
     
-    // If still no success, try alternative usernames with the most likely URL
-    if (!accessToken && possibleTokenUrls.length > 0) {
-      const mainUrl = possibleTokenUrls[1]; // Try without /auth/ first
-      console.log(`[LOGIN] Trying alternative usernames with URL: ${mainUrl}`);
-      
-      for (const testUsername of alternativeUsernames) {
-        try {
-          console.log(`[LOGIN] Trying username: ${testUsername}`);
-          accessToken = await getPasswordToken({
-            tokenUrl: mainUrl,
-            clientId: keycloakConfig.KC_CLIENT_ID,
-            clientSecret: undefined,
-            username: testUsername,
-            password,
-            scope: "openid",
-          });
-          console.log(`[LOGIN] SUCCESS with URL: ${mainUrl} and username: ${testUsername}`);
-          successUrl = mainUrl;
-          successUsername = testUsername;
-          break;
-        } catch (error: any) {
-          console.log(`[LOGIN] FAILED with username: ${testUsername} - ${error.message}`);
-          lastError = error;
-          continue;
-        }
-      }
-    }
-    
-    if (!accessToken) {
-      throw lastError || new Error("All URL and username combinations failed");
-    }
-    
-    if (successUrl && successUsername) {
-      console.log(`[LOGIN] Final success: URL=${successUrl}, Username=${successUsername}`);
-    }
+    console.log(`[LOGIN] SUCCESS with username: ${mappedUsername}`);
     console.log("[LOGIN] token acquired, length:", accessToken?.length);
 
     if (!isTokenValid(accessToken)) {
