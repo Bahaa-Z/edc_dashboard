@@ -67,12 +67,19 @@ router.post("/login", async (req: Request, res: Response) => {
   console.log("- Username:", username);
   console.log("- Has Client Secret:", !!keycloakConfig.KC_CLIENT_SECRET);
   
-  // Test different username formats
+  // Email to UUID mapping for known users
+  const emailToUsernameMap: Record<string, string> = {
+    "devaji.patil@arena2036.de": "44c5e668-980a-4cb3-9c28-6916faf1a2a3",
+    // Add more users as needed
+  };
+
+  // Test different username formats including UUID mapping
   const alternativeUsernames = [
+    emailToUsernameMap[username.toLowerCase()] || username, // UUID if email is mapped
     username, // Original: devaji.patil@arena2036.de
     username.split('@')[0], // Just: devaji.patil
     username.toLowerCase(), // Lowercase version
-  ];
+  ].filter((u, i, arr) => arr.indexOf(u) === i); // Remove duplicates
   
   console.log("- Alternative usernames to try:", alternativeUsernames);
 
