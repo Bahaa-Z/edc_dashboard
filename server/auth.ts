@@ -74,46 +74,72 @@ router.post("/login", async (req: Request, res: Response) => {
     // Add more users as needed
   };
 
-  // Use UUID if email is mapped, otherwise use original username
-  const mappedUsername = emailToUsernameMap[username.toLowerCase()] || username;
-  
-  console.log("- Mapped username:", mappedUsername);
+  // Try both: original email and UUID
+  console.log("- Testing both username formats");
 
+  let accessToken: string | null = null;
+  let successUsername = "";
+
+  // Attempt 1: Original email
   try {
-    // Single login attempt with correct client configuration
-    console.log(`[LOGIN] Attempting login with ${keycloakConfig.KC_CLIENT_SECRET ? 'Confidential' : 'Public'} client`);
-    
-    const accessToken = await getPasswordToken({
+    console.log("[LOGIN] Attempt 1: Using original email:", username);
+    accessToken = await getPasswordToken({
       tokenUrl,
       clientId: keycloakConfig.KC_CLIENT_ID,
-      clientSecret: keycloakConfig.KC_CLIENT_SECRET, // Now using client secret for confidential client
-      username: mappedUsername,
+      clientSecret: keycloakConfig.KC_CLIENT_SECRET,
+      username: username, // Original email
       password,
       scope: "openid",
     });
+    successUsername = username;
+    console.log("[LOGIN] SUCCESS with email!");
+  } catch (emailError) {
+    console.log("[LOGIN] Failed with email, trying UUID...");
     
-    console.log(`[LOGIN] SUCCESS with username: ${mappedUsername}`);
-    console.log("[LOGIN] token acquired, length:", accessToken?.length);
-
-    if (!isTokenValid(accessToken)) {
-      return res.status(401).json({ message: "Invalid token received" });
+    // Attempt 2: UUID mapping
+    const mappedUsername = emailToUsernameMap[username.toLowerCase()] || username;
+    try {
+      console.log("[LOGIN] Attempt 2: Using UUID:", mappedUsername);
+      accessToken = await getPasswordToken({
+        tokenUrl,
+        clientId: keycloakConfig.KC_CLIENT_ID,
+        clientSecret: keycloakConfig.KC_CLIENT_SECRET,
+        username: mappedUsername, // UUID
+        password,
+        scope: "openid",
+      });
+      successUsername = mappedUsername;
+      console.log("[LOGIN] SUCCESS with UUID!");
+    } catch (uuidError) {
+      console.log("[LOGIN] Both attempts failed");
+      console.error("Email error:", emailError);
+      console.error("UUID error:", uuidError);
+      throw uuidError; // Throw the last error
     }
-
-    const user = parseUserFromToken(accessToken);
-
-    // Session-Cookie setzen (HttpOnly)
-    res.cookie("edc_session", accessToken, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : undefined, // 30 Tage oder Session
-    });
-
-    return res.json({ user });
-  } catch (e: any) {
-    console.error("[LOGIN] error:", e?.message, e?.stack);
-    return res.status(401).json({ message: e?.message ?? "Login failed (Keycloak)" });
   }
+
+  if (!accessToken) {
+    return res.status(401).json({ message: "Login failed - no token received" });
+  }
+    
+  console.log(`[LOGIN] FINAL SUCCESS with username: ${successUsername}`);
+  console.log("[LOGIN] token acquired, length:", accessToken?.length);
+
+  if (!isTokenValid(accessToken)) {
+    return res.status(401).json({ message: "Invalid token received" });
+  }
+
+  const user = parseUserFromToken(accessToken);
+
+  // Session-Cookie setzen (HttpOnly)
+  res.cookie("edc_session", accessToken, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : undefined, // 30 Tage oder Session
+  });
+
+  return res.json({ user });
 });
 
 // POST /api/auth/logout
