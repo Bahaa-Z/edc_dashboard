@@ -5,12 +5,12 @@ import { getPasswordToken, decodeToken, isTokenValid } from "./token";
 
 const router = express.Router();
 
-// Environment configuration - Using CX-EDC with client credentials (WORKAROUND)
+// Environment configuration - Back to CX-SDE for systematic debugging
 const keycloakConfig = {
   KC_URL: process.env.KC_URL || "https://centralidp.arena2036-x.de/auth",
   KC_REALM: process.env.KC_REALM || "CX-Central", 
-  KC_CLIENT_ID: process.env.KC_CLIENT_ID || "CX-EDC",
-  KC_CLIENT_SECRET: process.env.KC_CLIENT_SECRET_EDC || "kwe2FC3EXDPUuUEoVhI6igUnRAmzkuwN",
+  KC_CLIENT_ID: process.env.KC_CLIENT_ID || "CX-SDE",
+  KC_CLIENT_SECRET: undefined, // CX-SDE is Public Client
 };
 
 // Debug configuration
@@ -74,59 +74,79 @@ router.post("/login", async (req: Request, res: Response) => {
     // Add more users as needed
   };
 
-  // CRITICAL: CORS/Client configuration issue suspected
-  console.log("[LOGIN] CRITICAL: Both username formats failed with same error");
-  console.log("[LOGIN] This could be CORS/Web Origins or Client configuration issue!");
-  console.log("[LOGIN] Current password attempt length:", password?.length);
-  console.log("[LOGIN] Backend running on: 0.0.0.0:5000");
-  console.log("[LOGIN] Keycloak Web Origins should include: http://localhost:5000");
+  // SYSTEMATIC DEBUGGING for CX-SDE Client
+  console.log("[DEBUG] CX-SDE Client - Systematic Analysis:");
+  console.log("- Realm:", keycloakConfig.KC_REALM);
+  console.log("- Client ID:", keycloakConfig.KC_CLIENT_ID);
+  console.log("- Token URL:", tokenUrl);
+  console.log("- Original username:", username);
+  console.log("- Password length:", password?.length);
   
-  // Try with UUID format (most likely correct format)
-  const mappedUsername = emailToUsernameMap[username.toLowerCase()] || username;
-  console.log("[LOGIN] Attempting with UUID:", mappedUsername);
+  // Test multiple username formats systematically
+  const testFormats = [
+    { format: "email", value: username },
+    { format: "UUID", value: emailToUsernameMap[username.toLowerCase()] || username },
+    { format: "lowercase-email", value: username.toLowerCase() },
+  ];
   
-  try {
-    const accessToken = await getPasswordToken({
-      tokenUrl,
-      clientId: keycloakConfig.KC_CLIENT_ID,
-      clientSecret: keycloakConfig.KC_CLIENT_SECRET,
-      username: mappedUsername,
-      password,
-      scope: "openid",
-    });
-    
-    console.log("[LOGIN] SUCCESS!");
-    const successUsername = mappedUsername;
-
-    if (!accessToken) {
-      return res.status(401).json({ message: "Login failed - no token received" });
+  console.log("[DEBUG] Testing username formats:");
+  testFormats.forEach((format, i) => {
+    console.log(`  ${i+1}. ${format.format}: ${format.value}`);
+  });
+  
+  let accessToken: string | null = null;
+  let successFormat = "";
+  
+  // Try each format
+  for (const format of testFormats) {
+    try {
+      console.log(`[LOGIN] Attempting format: ${format.format} (${format.value})`);
+      accessToken = await getPasswordToken({
+        tokenUrl,
+        clientId: keycloakConfig.KC_CLIENT_ID,
+        clientSecret: keycloakConfig.KC_CLIENT_SECRET,
+        username: format.value,
+        password,
+        scope: "openid",
+      });
+      successFormat = format.format;
+      console.log(`[LOGIN] SUCCESS with format: ${format.format}!`);
+      break;
+    } catch (error: any) {
+      console.log(`[LOGIN] Failed with ${format.format}:`, error?.message);
     }
-    
-    console.log(`[LOGIN] FINAL SUCCESS with username: ${successUsername}`);
-    console.log("[LOGIN] token acquired, length:", accessToken?.length);
-
-    if (!isTokenValid(accessToken)) {
-      return res.status(401).json({ message: "Invalid token received" });
-    }
-
-    const user = parseUserFromToken(accessToken);
-
-    // Session-Cookie setzen (HttpOnly)
-    res.cookie("edc_session", accessToken, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : undefined, // 30 Tage oder Session
-    });
-
-    return res.json({ user });
-  } catch (e: any) {
-    console.error("[LOGIN] Password authentication failed:", e?.message);
+  }
+  
+  if (!accessToken) {
+    console.log("[DEBUG] All username formats failed. Possible causes:");
+    console.log("1. Password is incorrect");
+    console.log("2. User account is disabled/locked");
+    console.log("3. User doesn't exist in CX-Central realm");
+    console.log("4. CX-SDE client has additional restrictions");
     return res.status(401).json({ 
-      message: "Login failed - please check your password",
-      details: "Both username formats tested, password appears incorrect"
+      message: "Authentication failed",
+      details: "All username formats tested, none worked"
     });
   }
+    
+  console.log(`[LOGIN] FINAL SUCCESS with format: ${successFormat}!`);
+  console.log("[LOGIN] token acquired, length:", accessToken?.length);
+
+  if (!isTokenValid(accessToken)) {
+    return res.status(401).json({ message: "Invalid token received" });
+  }
+
+  const user = parseUserFromToken(accessToken);
+
+  // Session-Cookie setzen (HttpOnly)
+  res.cookie("edc_session", accessToken, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : undefined, // 30 Tage oder Session
+  });
+
+  return res.json({ user });
 });
 
 // POST /api/auth/logout
