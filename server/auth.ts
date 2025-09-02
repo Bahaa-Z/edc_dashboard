@@ -52,12 +52,17 @@ router.post("/login", async (req: Request, res: Response) => {
 
   const { username, password, rememberMe = false } = body;
 
-  // Build token URL
-  const tokenUrl = `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}/protocol/openid-connect/token`;
+  // Test different Keycloak URL formats
+  const possibleTokenUrls = [
+    `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}/protocol/openid-connect/token`, // Original with /auth/
+    `https://centralidp.arena2036-x.de/realms/${keycloakConfig.KC_REALM}/protocol/openid-connect/token`, // Without /auth/
+    `https://centralidp.arena2036-x.de/auth/realms/${keycloakConfig.KC_REALM}/protocol/openid-connect/token`, // Explicit /auth/
+  ];
+  
+  console.log("- Testing URLs:", possibleTokenUrls);
 
   // Debug logging (ohne sensitive Daten)
   console.log("[LOGIN] Debug Info:");
-  console.log("- Token URL:", tokenUrl);
   console.log("- Client ID:", keycloakConfig.KC_CLIENT_ID);
   console.log("- Username:", username);
   console.log("- Has Client Secret:", !!keycloakConfig.KC_CLIENT_SECRET);
@@ -72,32 +77,69 @@ router.post("/login", async (req: Request, res: Response) => {
   console.log("- Alternative usernames to try:", alternativeUsernames);
 
   try {
-    // Try different username formats
+    // Try different URL and username combinations
     let accessToken: string | null = null;
     let lastError: any = null;
+    let successUrl: string | null = null;
+    let successUsername: string | null = null;
     
-    for (const testUsername of alternativeUsernames) {
+    // Test each URL with the main username first
+    for (const testUrl of possibleTokenUrls) {
       try {
-        console.log(`[LOGIN] Trying username: ${testUsername}`);
+        console.log(`[LOGIN] Trying URL: ${testUrl} with username: ${username}`);
         accessToken = await getPasswordToken({
-          tokenUrl,
+          tokenUrl: testUrl,
           clientId: keycloakConfig.KC_CLIENT_ID,
           clientSecret: undefined, // Public Client - kein Secret senden
-          username: testUsername,
+          username: username,
           password,
           scope: "openid",
         });
-        console.log(`[LOGIN] SUCCESS with username: ${testUsername}`);
+        console.log(`[LOGIN] SUCCESS with URL: ${testUrl} and username: ${username}`);
+        successUrl = testUrl;
+        successUsername = username;
         break; // Success - exit loop
       } catch (error: any) {
-        console.log(`[LOGIN] FAILED with username: ${testUsername} - ${error.message}`);
+        console.log(`[LOGIN] FAILED with URL: ${testUrl} - ${error.message}`);
         lastError = error;
-        continue; // Try next username format
+        continue; // Try next URL
+      }
+    }
+    
+    // If still no success, try alternative usernames with the most likely URL
+    if (!accessToken && possibleTokenUrls.length > 0) {
+      const mainUrl = possibleTokenUrls[1]; // Try without /auth/ first
+      console.log(`[LOGIN] Trying alternative usernames with URL: ${mainUrl}`);
+      
+      for (const testUsername of alternativeUsernames) {
+        try {
+          console.log(`[LOGIN] Trying username: ${testUsername}`);
+          accessToken = await getPasswordToken({
+            tokenUrl: mainUrl,
+            clientId: keycloakConfig.KC_CLIENT_ID,
+            clientSecret: undefined,
+            username: testUsername,
+            password,
+            scope: "openid",
+          });
+          console.log(`[LOGIN] SUCCESS with URL: ${mainUrl} and username: ${testUsername}`);
+          successUrl = mainUrl;
+          successUsername = testUsername;
+          break;
+        } catch (error: any) {
+          console.log(`[LOGIN] FAILED with username: ${testUsername} - ${error.message}`);
+          lastError = error;
+          continue;
+        }
       }
     }
     
     if (!accessToken) {
-      throw lastError || new Error("All username formats failed");
+      throw lastError || new Error("All URL and username combinations failed");
+    }
+    
+    if (successUrl && successUsername) {
+      console.log(`[LOGIN] Final success: URL=${successUrl}, Username=${successUsername}`);
     }
     console.log("[LOGIN] token acquired, length:", accessToken?.length);
 
