@@ -138,12 +138,25 @@ router.post("/login", async (req: Request, res: Response) => {
   }
   
   if (!accessToken) {
-    console.log("[LOGIN] All CX-SDE attempts failed. Possible solutions:");
-    console.log("1. Check Keycloak Admin Console: CX-SDE Client Settings");
-    console.log("2. Ensure 'Direct Access Grants Enabled' is ON");
-    console.log("3. Check 'Access Type' is set to 'public' or 'confidential'");
-    console.log("4. Verify user is assigned to CX-SDE client");
-    throw new Error("CX-SDE Password Grant not supported - check Keycloak configuration");
+    console.log("[LOGIN] All CX-SDE attempts failed. SOLUTION:");
+    console.log("=".repeat(60));
+    console.log("KEYCLOAK ADMIN CONSOLE CHANGES NEEDED FOR CX-SDE:");
+    console.log("1. Clients → CX-SDE → Settings");
+    console.log("2. Set 'Direct Access Grants Enabled' to ON");
+    console.log("3. Save settings");
+    console.log("4. Try login again");
+    console.log("=".repeat(60));
+    
+    return res.status(401).json({ 
+      message: "CX-SDE Password Grant not enabled",
+      details: "Enable 'Direct Access Grants' in Keycloak Admin Console for CX-SDE client",
+      solution: {
+        step1: "Open Keycloak Admin Console",
+        step2: "Go to Clients → CX-SDE → Settings", 
+        step3: "Set 'Direct Access Grants Enabled' to ON",
+        step4: "Save and try login again"
+      }
+    });
   }
   
   console.log(`[LOGIN] CX-SDE Success with: ${successAttempt}`);
