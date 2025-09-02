@@ -13,6 +13,12 @@ const keycloakConfig = {
   KC_CLIENT_SECRET: process.env.KC_CLIENT_SECRET_EDC, // New client secret
 };
 
+// Debug environment variables
+console.log("[AUTH] Environment Debug:");
+console.log("- KC_CLIENT_SECRET_EDC exists:", !!process.env.KC_CLIENT_SECRET_EDC);
+console.log("- KC_CLIENT_SECRET_EDC length:", process.env.KC_CLIENT_SECRET_EDC?.length || 0);
+console.log("- keycloakConfig.KC_CLIENT_SECRET:", !!keycloakConfig.KC_CLIENT_SECRET);
+
 // Info: Using new CX-EDC client configuration
 if (!process.env.KC_CLIENT_ID) {
   console.log("[AUTH] Using default KC_CLIENT_ID: CX-EDC");
