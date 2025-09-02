@@ -52,11 +52,11 @@ router.post("/login", async (req: Request, res: Response) => {
 
   const { username, password, rememberMe = false } = body;
 
-  // Test different Keycloak URL formats
+  // Test different Keycloak URL formats based on user's working auth URL
   const possibleTokenUrls = [
-    `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}/protocol/openid-connect/token`, // Original with /auth/
+    `https://centralidp.arena2036-x.de/auth/realms/${keycloakConfig.KC_REALM}/protocol/openid-connect/token`, // Based on user's auth URL
+    `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}/protocol/openid-connect/token`, // Original config
     `https://centralidp.arena2036-x.de/realms/${keycloakConfig.KC_REALM}/protocol/openid-connect/token`, // Without /auth/
-    `https://centralidp.arena2036-x.de/auth/realms/${keycloakConfig.KC_REALM}/protocol/openid-connect/token`, // Explicit /auth/
   ];
   
   console.log("- Testing URLs:", possibleTokenUrls);
