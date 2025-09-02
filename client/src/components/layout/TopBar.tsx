@@ -10,7 +10,7 @@ import { User, ChevronDown } from "lucide-react";
 import { useLocation } from "wouter";
 
 export function TopBar() {
-  const { t, language, setLanguage, setUser } = useApp();
+  const { t, language, setLanguage, setUser, user } = useApp();
   const [, navigate] = useLocation();
 
   const handleLogout = () => {
@@ -60,7 +60,7 @@ export function TopBar() {
               data-testid="user-menu-trigger"
             >
               <User className="h-5 w-5" />
-              <span className="font-medium">{t("user")}</span>
+              <span className="font-medium">{user?.username || t("user")}</span>
               <ChevronDown className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
