@@ -1,62 +1,47 @@
-import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
-import { useLocation } from "wouter";
-
-import { Button } from "@/components/ui/button";
+import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useApp } from "@/context/AppContext";
-import { api } from "@/lib/api";
-// REMOVED: All keycloak-js imports removed per requirements
-
-import { loginSchema, type LoginCredentials } from "@shared/schema";
-import { Eye, EyeOff, LogIn } from "lucide-react";
+import { useLocation } from "wouter";
 
 export default function Login() {
-  const { t, loginUser } = useApp();
+  const { t } = useApp();
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const form = useForm<LoginCredentials>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: { username: "", password: "", rememberMe: false },
-    mode: "onSubmit",
-  });
-
-  const loginMutation = useMutation({
-    // HINWEIS: api.login ruft /api/auth/login auf (JSON), KEINE HTML-Seite!
-    mutationFn: api.login,
-    onSuccess: (data, values) => {
-      // Session-Cookie kommt vom Server (HttpOnly).
-      // Wir merken uns den User im AppContext (optional: rememberMe -> localStorage)
-      loginUser(
-        { id: data.user.id, username: data.user.username },
-        "", // kein clientseitiges Token nötig (Server-Session)
-        values.rememberMe ?? false
-      );
-      toast({ title: "Success", description: "Logged in successfully." });
-      navigate("/");
-    },
-    onError: async (err: any) => {
+  // Handle OAuth errors from URL parameters
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const error = params.get('error');
+    
+    if (error) {
+      const errorMessages: Record<string, string> = {
+        oauth_error: "Authentication failed. Please try again.",
+        missing_params: "Invalid response from authentication server.",
+        invalid_state: "Security check failed. Please try again.",
+        token_exchange_failed: "Authentication service error.",
+        no_access_token: "Authentication incomplete.",
+        server_error: "Server error occurred during authentication."
+      };
+      
       toast({
-        title: "Error",
-        description:
-          (typeof err?.message === "string" && err.message) || "Invalid credentials",
+        title: "Authentication Error",
+        description: errorMessages[error] || "Login failed. Please try again.",
         variant: "destructive",
       });
-    },
-  });
+      
+      // Clear error from URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [toast]);
 
-  const onSubmit = (values: LoginCredentials) => {
-    loginMutation.mutate(values);
+  const handleKeycloakLogin = () => {
+    setIsLoading(true);
+    // Redirect to OAuth2 authorization endpoint
+    window.location.href = '/api/auth/authorize';
   };
-
-// REMOVED: Keycloak login handler removed per requirements
 
   return (
     <div className="fixed inset-0">
@@ -94,79 +79,37 @@ export default function Login() {
               </p>
             </div>
 
-            {/* Login-Form */}
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              {/* Username */}
-              <div>
-                <Label htmlFor="username">{t("username")}</Label>
-                <Input
-                  id="username"
-                  type="text"
-                  autoComplete="username"
-                  {...form.register("username")}
-                  className="mt-1 bg-white"
-                  data-testid="username-input"
-                />
-                {form.formState.errors.username && (
-                  <p className="text-sm text-red-600 mt-1">
-                    {form.formState.errors.username.message}
-                  </p>
-                )}
-              </div>
-
-              {/* Password + Toggle */}
-              <div>
-                <Label htmlFor="password">{t("password")}</Label>
-                <div className="relative mt-1">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
-                    {...form.register("password")}
-                    className="bg-white pr-10"
-                    data-testid="password-input"
-                  />
-                  <button
-                    type="button"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                    onClick={() => setShowPassword((s) => !s)}
-                  >
-                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </button>
-                </div>
-                {form.formState.errors.password && (
-                  <p className="text-sm text-red-600 mt-1">
-                    {form.formState.errors.password.message}
-                  </p>
-                )}
-              </div>
-
-              {/* Remember me */}
-              <div className="flex items-center justify-between text-sm text-gray-600">
-                <label className="flex items-center gap-2 select-none">
-                  <input
-                    type="checkbox"
-                    {...form.register("rememberMe")}
-                    className="h-4 w-4 text-[var(--arena-orange)]"
-                    data-testid="remember-me-checkbox"
-                  />
-                  Remember me
-                </label>
-                <span className="text-gray-400 select-none">&nbsp;</span>
-              </div>
-
+            {/* OAuth2 Login */}
+            <div className="space-y-4">
+              <p className="text-center text-gray-600 text-sm mb-6">
+                Sign in with your ARENA2036 Keycloak account
+              </p>
+              
               <Button
-                type="submit"
-                disabled={loginMutation.isPending}
-                className="w-full bg-[var(--arena-orange,#F28C00)] hover:bg-[#d67b00] text-white"
-                data-testid="sign-in-button"
+                onClick={handleKeycloakLogin}
+                disabled={isLoading}
+                className="w-full bg-[#F28C00] hover:bg-[#D17A00] text-white font-medium py-3 px-4 rounded-md transition-colors flex items-center justify-center space-x-2"
+                data-testid="keycloak-login-button"
               >
-                {loginMutation.isPending ? "Signing in..." : t("signIn")}
+                {isLoading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Redirecting to Keycloak...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 2C13.1 2 14 2.9 14 4V8H18C19.1 8 20 8.9 20 10V20C20 21.1 19.1 22 18 22H6C4.9 22 4 21.1 4 20V10C4 8.9 4.9 8 6 8H10V4C10 2.9 10.9 2 12 2M12 4V8H12V4Z" />
+                    </svg>
+                    <span>Sign in with Keycloak</span>
+                  </>
+                )}
               </Button>
-            </form>
-
-            {/* REMOVED: Keycloak login section per requirements */}
+              
+              <div className="text-center text-xs text-gray-500 mt-4">
+                You will be redirected to the ARENA2036 identity provider
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>

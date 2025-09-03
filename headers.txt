@@ -1,0 +1,12 @@
+HTTP/1.1 302 Found
+X-Powered-By: Express
+Vary: Origin, Accept
+Access-Control-Allow-Credentials: true
+Location: https://centralidp.arena2036-x.de/auth/realms/CX-Central/protocol/openid-connect/auth?client_id=CX-EDC&response_type=code&scope=openid+profile+email&redirect_uri=http%3A%2F%2Flocalhost%3A5000%2Fapi%2Fauth%2Fcallback&state=a2826dc69344882a14ccbd7f7606be18827aa98259ff682bd8c2228a33b91b65&code_challenge=gJn8Rtp-NXXS1YUFZ68FdLoxkAflpcflfvg4UXncbEk&code_challenge_method=S256
+Content-Type: text/plain; charset=utf-8
+Content-Length: 394
+Set-Cookie: edc_mc_sid=s%3AS1kSRafpIyg4EI92qAEKu_34OwpcnvPm.QLUNtgzbKmq6pMKxJQXztmooi7DoUeZ8L4ODqCSU%2Bw4; Path=/; HttpOnly; SameSite=Lax
+Date: Wed, 03 Sep 2025 13:24:37 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+

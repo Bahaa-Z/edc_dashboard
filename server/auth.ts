@@ -1,7 +1,8 @@
-// server/auth.ts
+// server/auth.ts - OAuth2 Authorization Code Flow
 import express, { type Request, type Response } from "express";
 import { z } from "zod";
 import { getPasswordToken, decodeToken, isTokenValid } from "./token";
+import crypto from "crypto";
 
 const router = express.Router();
 
@@ -19,9 +20,22 @@ console.log("- KC_CLIENT_ID:", keycloakConfig.KC_CLIENT_ID);
 console.log("- KC_CLIENT_SECRET:", keycloakConfig.KC_CLIENT_SECRET ? "SET" : "NOT_SET");
 console.log("- Client Type:", keycloakConfig.KC_CLIENT_SECRET ? "Confidential" : "Public");
 
-console.log("[AUTH] Using CX-EDC Client Credentials for backend service authentication");
+console.log("[AUTH] Using OAuth2 Authorization Code Flow for user authentication");
 
-// Body-Validierung
+// OAuth2 Configuration
+const KEYCLOAK_BASE = "https://centralidp.arena2036-x.de/auth/realms/CX-Central";
+const AUTHORIZATION_URL = `${KEYCLOAK_BASE}/protocol/openid-connect/auth`;
+const TOKEN_URL = `${KEYCLOAK_BASE}/protocol/openid-connect/token`;
+const REDIRECT_URI = process.env.NODE_ENV === 'development' 
+  ? 'http://localhost:5000/api/auth/callback'
+  : `https://${process.env.REPLIT_DOMAIN || 'your-app'}/api/auth/callback`;
+
+console.log("[AUTH] OAuth2 Configuration:");
+console.log("- Authorization URL:", AUTHORIZATION_URL);
+console.log("- Token URL:", TOKEN_URL);
+console.log("- Redirect URI:", REDIRECT_URI);
+
+// Legacy schema (kept for compatibility)
 const loginBodySchema = z.object({
   username: z.string().min(1, "Username is required"),
   password: z.string().min(1, "Password is required"),
@@ -41,124 +55,122 @@ function parseUserFromToken(accessToken: string) {
   return { id: username, username, email };
 }
 
-// Login endpoint
-router.post("/login", async (req: Request, res: Response) => {
-  let body: LoginBody;
+// Step 1: Initialize OAuth2 Authorization (Redirect to Keycloak)
+router.get("/authorize", (req: Request, res: Response) => {
+  // Generate PKCE challenge (recommended for security)
+  const codeVerifier = crypto.randomBytes(32).toString('base64url');
+  const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+  const state = crypto.randomBytes(32).toString('hex');
+  
+  // Store in session for callback verification
+  req.session.oauthState = state;
+  req.session.codeVerifier = codeVerifier;
+  
+  // Build authorization URL
+  const params = new URLSearchParams({
+    client_id: keycloakConfig.KC_CLIENT_ID,
+    response_type: 'code',
+    scope: 'openid profile email',
+    redirect_uri: REDIRECT_URI,
+    state: state,
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256'
+  });
+  
+  const authUrl = `${AUTHORIZATION_URL}?${params.toString()}`;
+  console.log("[AUTH] Redirecting to Keycloak:", authUrl);
+  
+  res.redirect(authUrl);
+});
+
+// Step 2: Handle OAuth2 Callback (Exchange code for token)
+router.get("/callback", async (req: Request, res: Response) => {
+  const { code, state, error } = req.query;
+  
+  if (error) {
+    console.log("[CALLBACK] OAuth error:", error);
+    return res.redirect('/login?error=oauth_error');
+  }
+  
+  if (!code || !state) {
+    console.log("[CALLBACK] Missing code or state parameter");
+    return res.redirect('/login?error=missing_params');
+  }
+  
+  // Verify state parameter (CSRF protection)
+  if (state !== req.session.oauthState) {
+    console.log("[CALLBACK] Invalid state parameter");
+    return res.redirect('/login?error=invalid_state');
+  }
+  
   try {
-    body = loginBodySchema.parse(req.body);
-  } catch (e) {
-    return res.status(400).json({ message: "Invalid request data" });
-  }
-
-  const { username, password, rememberMe = false } = body;
-
-  // Using confirmed working URL
-  const tokenUrl = `https://centralidp.arena2036-x.de/auth/realms/${keycloakConfig.KC_REALM}/protocol/openid-connect/token`;
-  
-  // Debug logging (ohne sensitive Daten)
-  console.log("[LOGIN] Debug Info:");
-  console.log("- Token URL:", tokenUrl);
-  console.log("- Client ID:", keycloakConfig.KC_CLIENT_ID);
-  console.log("- Username:", username);
-  console.log("- Has Client Secret:", !!keycloakConfig.KC_CLIENT_SECRET);
-  
-  // Known valid users (verified working credentials from previous testing)
-  const validUsers: Record<string, { uuid: string; email: string }> = {
-    "devaji.patil@arena2036.de": { 
-      uuid: "44c5e668-980a-4cb3-9c28-6916faf1a2a3", 
-      email: "devaji.patil@arena2036.de" 
-    },
-    "44c5e668-980a-4cb3-9c28-6916faf1a2a3": { 
-      uuid: "44c5e668-980a-4cb3-9c28-6916faf1a2a3", 
-      email: "devaji.patil@arena2036.de" 
-    },
-  };
-
-  // Validate user credentials (we know these are correct from testing)
-  const userKey = username.toLowerCase();
-  const validUser = validUsers[userKey];
-  
-  if (!validUser) {
-    console.log("[LOGIN] User not found in valid users list:", username);
-    return res.status(401).json({ message: "Invalid credentials" });
-  }
-
-  // Validate password (we know this is the correct password from testing)
-  if (password !== "adminconsolepwcentralidp4") {
-    console.log("[LOGIN] Invalid password for user:", username);
-    return res.status(401).json({ message: "Invalid credentials" });
-  }
-
-  console.log("[LOGIN] User credentials validated, getting service token from CX-EDC...");
-  
-  // Get service token from CX-EDC (we know this works from our tests)
-  try {
-    const body = new URLSearchParams();
-    body.set("grant_type", "client_credentials");
-    body.set("client_id", keycloakConfig.KC_CLIENT_ID);
-    body.set("client_secret", keycloakConfig.KC_CLIENT_SECRET!);
+    console.log("[CALLBACK] Exchanging authorization code for tokens...");
     
-    console.log("- Getting CX-EDC service token...");
-    
-    const response = await fetch(tokenUrl, {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Accept": "application/json"
-      },
-      body: body.toString(),
+    // Exchange authorization code for access token
+    const body = new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: keycloakConfig.KC_CLIENT_ID,
+      client_secret: keycloakConfig.KC_CLIENT_SECRET!,
+      code: code as string,
+      redirect_uri: REDIRECT_URI,
+      code_verifier: req.session.codeVerifier!
     });
     
-    const responseText = await response.text();
-    console.log(`- Response status: ${response.status}`);
+    const response = await fetch(TOKEN_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json'
+      },
+      body: body.toString()
+    });
     
     if (!response.ok) {
-      console.log(`- Response body: ${responseText}`);
-      return res.status(401).json({ message: "Service authentication failed" });
+      const errorText = await response.text();
+      console.log("[CALLBACK] Token exchange failed:", response.status, errorText);
+      return res.redirect('/login?error=token_exchange_failed');
     }
     
-    const tokenData = JSON.parse(responseText);
+    const tokenData = await response.json();
     const accessToken = tokenData.access_token;
     
     if (!accessToken) {
-      return res.status(401).json({ message: "No access token received" });
+      console.log("[CALLBACK] No access token in response");
+      return res.redirect('/login?error=no_access_token');
     }
     
-    console.log("[LOGIN] SUCCESS! Got CX-EDC service token");
-
-    // Create user object from validated credentials
-    const user = { 
-      id: validUser.uuid, 
-      username: validUser.email, 
-      email: validUser.email 
-    };
-
+    // Parse user information from token
+    const user = parseUserFromToken(accessToken);
+    
+    console.log("[CALLBACK] SUCCESS! User authenticated:", user.username);
+    
     // Store in session
     req.session.user = user;
     req.session.accessToken = accessToken;
+    req.session.cookie.maxAge = 24 * 60 * 60 * 1000; // 24 hours
     
-    // Set cookie duration based on rememberMe
-    if (rememberMe) {
-      req.session.cookie.maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
-    } else {
-      req.session.cookie.maxAge = 24 * 60 * 60 * 1000; // 1 day
-    }
-
-    console.log("[LOGIN] Session created for user:", user.email);
+    // Clean up OAuth state
+    delete req.session.oauthState;
+    delete req.session.codeVerifier;
     
-    res.json({ 
-      message: "Login successful", 
-      user: { 
-        id: user.id, 
-        username: user.username, 
-        email: user.email 
-      } 
-    });
+    console.log("[CALLBACK] Session created for user:", user.username);
+    
+    // Redirect to dashboard
+    res.redirect('/');
     
   } catch (error: any) {
-    console.log("[LOGIN] Service token error:", error?.message);
-    return res.status(500).json({ message: "Authentication service error" });
+    console.log("[CALLBACK] Error during token exchange:", error?.message);
+    return res.redirect('/login?error=server_error');
   }
+});
+
+// Legacy login endpoint (kept for compatibility)
+router.post("/login", async (req: Request, res: Response) => {
+  // For Authorization Code Flow, redirect to /authorize endpoint
+  res.json({ 
+    message: "Use authorization code flow",
+    redirectTo: "/api/auth/authorize"
+  });
 });
 
 // Logout endpoint
