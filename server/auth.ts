@@ -75,6 +75,11 @@ router.post("/token", async (req: Request, res: Response) => {
       uuid: "44c5e668-980a-4cb3-9c28-6916faf1a2a3", 
       email: "devaji.patil@arena2036.de",
       password: "adminconsolepwcentralidp4"
+    },
+    "bahaa.ziadah@arena2036.de": { 
+      uuid: "b12a3456-789b-4cde-9f01-234567890abc", 
+      email: "bahaa.ziadah@arena2036.de",
+      password: "arenapwedc25"
     }
   };
 
