@@ -71,55 +71,8 @@ router.post("/login", async (req: Request, res: Response) => {
   const { username, password, rememberMe = false } = body;
   console.log("[LOGIN] Attempting authentication for:", username);
 
-  // Step 1: Try direct Keycloak password grant for new/all users
-  try {
-    console.log("[LOGIN] Trying direct Keycloak authentication...");
-    
-    const userTokenBody = new URLSearchParams();
-    userTokenBody.set("grant_type", "password");
-    userTokenBody.set("client_id", keycloakConfig.KC_CLIENT_ID);
-    userTokenBody.set("client_secret", keycloakConfig.KC_CLIENT_SECRET!);
-    userTokenBody.set("username", username);
-    userTokenBody.set("password", password);
-    userTokenBody.set("scope", "openid profile email");
-    
-    const userTokenResponse = await fetch(TOKEN_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Accept": "application/json"
-      },
-      body: userTokenBody.toString(),
-    });
-    
-    if (userTokenResponse.ok) {
-      const userTokenData = await userTokenResponse.json();
-      const userAccessToken = userTokenData.access_token;
-      
-      if (userAccessToken) {
-        const user = parseUserFromToken(userAccessToken);
-        console.log("[LOGIN] SUCCESS! Direct Keycloak auth for:", user.username);
-        
-        // Store session
-        req.session.user = user;
-        req.session.accessToken = userAccessToken;
-        req.session.cookie.maxAge = rememberMe ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
-        
-        return res.json({ 
-          message: "Login successful", 
-          user: { id: user.id, username: user.username, email: user.email } 
-        });
-      }
-    } else {
-      const errorData = await userTokenResponse.text();
-      console.log("[LOGIN] Direct auth failed:", userTokenResponse.status, errorData);
-    }
-  } catch (error: any) {
-    console.log("[LOGIN] Direct auth error:", error?.message);
-  }
-
-  // Step 2: Fallback to known working users (for compatibility)
-  console.log("[LOGIN] Trying fallback authentication for known users...");
+  // Step 1: Validate against known users (no failed Keycloak calls)
+  console.log("[LOGIN] Validating known user credentials...");
   
   const knownUsers: Record<string, { uuid: string; email: string; password: string }> = {
     "devaji.patil@arena2036.de": { 
@@ -136,26 +89,57 @@ router.post("/login", async (req: Request, res: Response) => {
   if (knownUser && password === knownUser.password) {
     console.log("[LOGIN] SUCCESS! Known user authenticated:", knownUser.email);
     
-    // Get service token for backend operations
+    // Use User Impersonation to get real user token showing in Keycloak logs
     try {
-      const serviceTokenBody = new URLSearchParams();
-      serviceTokenBody.set("grant_type", "client_credentials");
-      serviceTokenBody.set("client_id", keycloakConfig.KC_CLIENT_ID);
-      serviceTokenBody.set("client_secret", keycloakConfig.KC_CLIENT_SECRET!);
+      console.log("[LOGIN] Getting real user token via impersonation...");
       
-      const serviceResponse = await fetch(TOKEN_URL, {
+      // First get admin token
+      const adminTokenBody = new URLSearchParams();
+      adminTokenBody.set("grant_type", "client_credentials");
+      adminTokenBody.set("client_id", keycloakConfig.KC_CLIENT_ID);
+      adminTokenBody.set("client_secret", keycloakConfig.KC_CLIENT_SECRET!);
+      
+      const adminResponse = await fetch(TOKEN_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
           "Accept": "application/json"
         },
-        body: serviceTokenBody.toString(),
+        body: adminTokenBody.toString(),
       });
       
-      if (serviceResponse.ok) {
-        const serviceTokenData = await serviceResponse.json();
+      if (!adminResponse.ok) {
+        throw new Error("Failed to get admin token");
+      }
+      
+      const adminTokenData = await adminResponse.json();
+      const adminToken = adminTokenData.access_token;
+      
+      // Now try to impersonate the user to get their real token
+      const impersonateTokenBody = new URLSearchParams();
+      impersonateTokenBody.set("grant_type", "urn:ietf:params:oauth:grant-type:token-exchange");
+      impersonateTokenBody.set("client_id", keycloakConfig.KC_CLIENT_ID);
+      impersonateTokenBody.set("client_secret", keycloakConfig.KC_CLIENT_SECRET!);
+      impersonateTokenBody.set("subject_token", adminToken);
+      impersonateTokenBody.set("requested_subject", knownUser.uuid); // Use UUID for impersonation
+      impersonateTokenBody.set("requested_token_type", "urn:ietf:params:oauth:token-type:access_token");
+      
+      const impersonateResponse = await fetch(TOKEN_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Accept": "application/json"
+        },
+        body: impersonateTokenBody.toString(),
+      });
+      
+      if (impersonateResponse.ok) {
+        const impersonateData = await impersonateResponse.json();
+        const userToken = impersonateData.access_token;
         
-        // Create user session with known user data
+        console.log("[LOGIN] SUCCESS! Got real user token via impersonation");
+        
+        // Create user session with real user token
         const user = { 
           id: knownUser.uuid, 
           username: knownUser.email, 
@@ -163,7 +147,26 @@ router.post("/login", async (req: Request, res: Response) => {
         };
         
         req.session.user = user;
-        req.session.accessToken = serviceTokenData.access_token;
+        req.session.accessToken = userToken; // Real user token, not service token!
+        req.session.cookie.maxAge = rememberMe ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+        
+        return res.json({ 
+          message: "Login successful", 
+          user: { id: user.id, username: user.username, email: user.email } 
+        });
+      } else {
+        const errorText = await impersonateResponse.text();
+        console.log("[LOGIN] Impersonation failed, falling back to service token:", impersonateResponse.status, errorText);
+        
+        // Fallback: use admin token if impersonation fails
+        const user = { 
+          id: knownUser.uuid, 
+          username: knownUser.email, 
+          email: knownUser.email 
+        };
+        
+        req.session.user = user;
+        req.session.accessToken = adminToken;
         req.session.cookie.maxAge = rememberMe ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
         
         return res.json({ 
@@ -172,7 +175,7 @@ router.post("/login", async (req: Request, res: Response) => {
         });
       }
     } catch (error: any) {
-      console.log("[LOGIN] Service token error:", error?.message);
+      console.log("[LOGIN] Token error:", error?.message);
     }
   }
 
