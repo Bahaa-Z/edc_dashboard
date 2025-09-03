@@ -1,51 +1,58 @@
-import React, { useState } from "react";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useApp } from "@/context/AppContext";
 import { useLocation } from "wouter";
+import { Eye, EyeOff } from "lucide-react";
+import { api } from "@/lib/api";
+import { loginSchema, type LoginCredentials } from "@shared/schema";
 
 export default function Login() {
-  const { t } = useApp();
+  const { t, loginUser } = useApp();
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-  // Handle OAuth errors from URL parameters
-  React.useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const error = params.get('error');
-    
-    if (error) {
-      const errorMessages: Record<string, string> = {
-        oauth_error: "Authentication failed. Please try again.",
-        missing_params: "Invalid response from authentication server.",
-        invalid_state: "Security check failed. Please try again.",
-        token_exchange_failed: "Authentication service error.",
-        no_access_token: "Authentication incomplete.",
-        server_error: "Server error occurred during authentication."
-      };
-      
+  const form = useForm<LoginCredentials>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { username: "", password: "", rememberMe: false },
+    mode: "onSubmit",
+  });
+
+  const loginMutation = useMutation({
+    mutationFn: api.login,
+    onSuccess: (data, values) => {
+      loginUser(
+        { id: data.user.id, username: data.user.username },
+        "", // Server-Session basiert
+        values.rememberMe ?? false
+      );
+      toast({ title: "Success", description: "Logged in successfully." });
+      navigate("/");
+    },
+    onError: async (err: any) => {
       toast({
-        title: "Authentication Error",
-        description: errorMessages[error] || "Login failed. Please try again.",
+        title: "Error",
+        description:
+          (typeof err?.message === "string" && err.message) || "Invalid credentials",
         variant: "destructive",
       });
-      
-      // Clear error from URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, [toast]);
+    },
+  });
 
-  const handleKeycloakLogin = () => {
-    setIsLoading(true);
-    // Redirect to OAuth2 authorization endpoint
-    window.location.href = '/api/auth/authorize';
+  const onSubmit = (values: LoginCredentials) => {
+    loginMutation.mutate(values);
   };
 
   return (
     <div className="fixed inset-0">
-      {/* Hintergrundbild */}
+      {/* Background */}
       <img
         src="/background.svg"
         alt="Background"
@@ -55,11 +62,11 @@ export default function Login() {
       {/* Overlay */}
       <div className="absolute inset-0 bg-black/30" aria-hidden="true" />
 
-      {/* Inhalt */}
+      {/* Content */}
       <div className="relative z-10 flex items-center justify-center min-h-screen p-4">
         <Card className="w-full max-w-lg shadow-2xl bg-white/95 backdrop-blur-sm border-0">
           <CardContent className="p-8">
-            {/* Logo + Titel */}
+            {/* Logo + Title */}
             <div className="text-center mb-8">
               <div className="flex justify-center mb-6">
                 <img
@@ -79,37 +86,83 @@ export default function Login() {
               </p>
             </div>
 
-            {/* OAuth2 Login */}
-            <div className="space-y-4">
-              <p className="text-center text-gray-600 text-sm mb-6">
-                Sign in with your ARENA2036 Keycloak account
-              </p>
-              
+            {/* Login Form */}
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              {/* Username */}
+              <div>
+                <Label htmlFor="username">{t("username")}</Label>
+                <Input
+                  id="username"
+                  type="text"
+                  autoComplete="username"
+                  {...form.register("username")}
+                  className="mt-1 bg-white"
+                  data-testid="username-input"
+                />
+                {form.formState.errors.username && (
+                  <p className="text-sm text-red-600 mt-1">
+                    {form.formState.errors.username.message}
+                  </p>
+                )}
+              </div>
+
+              {/* Password */}
+              <div>
+                <Label htmlFor="password">{t("password")}</Label>
+                <div className="relative mt-1">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    {...form.register("password")}
+                    className="bg-white pr-10"
+                    data-testid="password-input"
+                  />
+                  <button
+                    type="button"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    onClick={() => setShowPassword((s) => !s)}
+                  >
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
+                {form.formState.errors.password && (
+                  <p className="text-sm text-red-600 mt-1">
+                    {form.formState.errors.password.message}
+                  </p>
+                )}
+              </div>
+
+              {/* Remember Me */}
+              <div className="flex items-center justify-between text-sm text-gray-600">
+                <label className="flex items-center gap-2 select-none">
+                  <input
+                    type="checkbox"
+                    {...form.register("rememberMe")}
+                    className="h-4 w-4 text-[var(--arena-orange)]"
+                    data-testid="remember-me-checkbox"
+                  />
+                  Remember me
+                </label>
+              </div>
+
               <Button
-                onClick={handleKeycloakLogin}
-                disabled={isLoading}
-                className="w-full bg-[#F28C00] hover:bg-[#D17A00] text-white font-medium py-3 px-4 rounded-md transition-colors flex items-center justify-center space-x-2"
-                data-testid="keycloak-login-button"
+                type="submit"
+                disabled={loginMutation.isPending}
+                className="w-full bg-[#F28C00] hover:bg-[#d67b00] text-white"
+                data-testid="login-button"
               >
-                {isLoading ? (
-                  <>
+                {loginMutation.isPending ? (
+                  <div className="flex items-center justify-center space-x-2">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Redirecting to Keycloak...</span>
-                  </>
+                    <span>Logging in...</span>
+                  </div>
                 ) : (
-                  <>
-                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 2C13.1 2 14 2.9 14 4V8H18C19.1 8 20 8.9 20 10V20C20 21.1 19.1 22 18 22H6C4.9 22 4 21.1 4 20V10C4 8.9 4.9 8 6 8H10V4C10 2.9 10.9 2 12 2M12 4V8H12V4Z" />
-                    </svg>
-                    <span>Sign in with Keycloak</span>
-                  </>
+                  "Login"
                 )}
               </Button>
-              
-              <div className="text-center text-xs text-gray-500 mt-4">
-                You will be redirected to the ARENA2036 identity provider
-              </div>
-            </div>
+            </form>
           </CardContent>
         </Card>
       </div>

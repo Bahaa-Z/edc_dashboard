@@ -20,20 +20,15 @@ console.log("- KC_CLIENT_ID:", keycloakConfig.KC_CLIENT_ID);
 console.log("- KC_CLIENT_SECRET:", keycloakConfig.KC_CLIENT_SECRET ? "SET" : "NOT_SET");
 console.log("- Client Type:", keycloakConfig.KC_CLIENT_SECRET ? "Confidential" : "Public");
 
-console.log("[AUTH] Using OAuth2 Authorization Code Flow for user authentication");
+console.log("[AUTH] Using improved Keycloak authentication for all users");
 
-// OAuth2 Configuration
+// Keycloak Configuration
 const KEYCLOAK_BASE = "https://centralidp.arena2036-x.de/auth/realms/CX-Central";
-const AUTHORIZATION_URL = `${KEYCLOAK_BASE}/protocol/openid-connect/auth`;
 const TOKEN_URL = `${KEYCLOAK_BASE}/protocol/openid-connect/token`;
-const REDIRECT_URI = process.env.NODE_ENV === 'development' 
-  ? 'http://localhost:5000/api/auth/callback'
-  : `https://${process.env.REPLIT_DOMAIN || 'your-app'}/api/auth/callback`;
 
-console.log("[AUTH] OAuth2 Configuration:");
-console.log("- Authorization URL:", AUTHORIZATION_URL);
+console.log("[AUTH] Keycloak Configuration:");
 console.log("- Token URL:", TOKEN_URL);
-console.log("- Redirect URI:", REDIRECT_URI);
+console.log("- Supports all registered Keycloak users");
 
 // Legacy schema (kept for compatibility)
 const loginBodySchema = z.object({
@@ -55,122 +50,92 @@ function parseUserFromToken(accessToken: string) {
   return { id: username, username, email };
 }
 
-// Step 1: Initialize OAuth2 Authorization (Redirect to Keycloak)
+// Legacy OAuth2 endpoints (kept for backward compatibility but not used)
 router.get("/authorize", (req: Request, res: Response) => {
-  // Generate PKCE challenge (recommended for security)
-  const codeVerifier = crypto.randomBytes(32).toString('base64url');
-  const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
-  const state = crypto.randomBytes(32).toString('hex');
-  
-  // Store in session for callback verification
-  req.session.oauthState = state;
-  req.session.codeVerifier = codeVerifier;
-  
-  // Build authorization URL
-  const params = new URLSearchParams({
-    client_id: keycloakConfig.KC_CLIENT_ID,
-    response_type: 'code',
-    scope: 'openid profile email',
-    redirect_uri: REDIRECT_URI,
-    state: state,
-    code_challenge: codeChallenge,
-    code_challenge_method: 'S256'
-  });
-  
-  const authUrl = `${AUTHORIZATION_URL}?${params.toString()}`;
-  console.log("[AUTH] Redirecting to Keycloak:", authUrl);
-  
-  res.redirect(authUrl);
+  res.redirect('/login');
 });
 
-// Step 2: Handle OAuth2 Callback (Exchange code for token)
-router.get("/callback", async (req: Request, res: Response) => {
-  const { code, state, error } = req.query;
-  
-  if (error) {
-    console.log("[CALLBACK] OAuth error:", error);
-    return res.redirect('/login?error=oauth_error');
+router.get("/callback", (req: Request, res: Response) => {
+  res.redirect('/login');
+});
+
+// Improved login endpoint with real Keycloak authentication
+router.post("/login", async (req: Request, res: Response) => {
+  let body: LoginBody;
+  try {
+    body = loginBodySchema.parse(req.body);
+  } catch (e) {
+    return res.status(400).json({ message: "Invalid request data" });
   }
-  
-  if (!code || !state) {
-    console.log("[CALLBACK] Missing code or state parameter");
-    return res.redirect('/login?error=missing_params');
-  }
-  
-  // Verify state parameter (CSRF protection)
-  if (state !== req.session.oauthState) {
-    console.log("[CALLBACK] Invalid state parameter");
-    return res.redirect('/login?error=invalid_state');
-  }
+
+  const { username, password, rememberMe = false } = body;
+
+  console.log("[LOGIN] Authenticating user with Keycloak:", username);
   
   try {
-    console.log("[CALLBACK] Exchanging authorization code for tokens...");
+    // Use Resource Owner Password Credentials Grant to authenticate user
+    const userTokenBody = new URLSearchParams();
+    userTokenBody.set("grant_type", "password");
+    userTokenBody.set("client_id", keycloakConfig.KC_CLIENT_ID);
+    userTokenBody.set("client_secret", keycloakConfig.KC_CLIENT_SECRET!);
+    userTokenBody.set("username", username);
+    userTokenBody.set("password", password);
+    userTokenBody.set("scope", "openid profile email");
     
-    // Exchange authorization code for access token
-    const body = new URLSearchParams({
-      grant_type: 'authorization_code',
-      client_id: keycloakConfig.KC_CLIENT_ID,
-      client_secret: keycloakConfig.KC_CLIENT_SECRET!,
-      code: code as string,
-      redirect_uri: REDIRECT_URI,
-      code_verifier: req.session.codeVerifier!
-    });
-    
-    const response = await fetch(TOKEN_URL, {
-      method: 'POST',
+    const userTokenResponse = await fetch(TOKEN_URL, {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json'
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json"
       },
-      body: body.toString()
+      body: userTokenBody.toString(),
     });
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.log("[CALLBACK] Token exchange failed:", response.status, errorText);
-      return res.redirect('/login?error=token_exchange_failed');
+    if (!userTokenResponse.ok) {
+      const errorText = await userTokenResponse.text();
+      console.log("[LOGIN] User authentication failed:", userTokenResponse.status, errorText);
+      return res.status(401).json({ message: "Invalid credentials" });
     }
     
-    const tokenData = await response.json();
-    const accessToken = tokenData.access_token;
+    const userTokenData = await userTokenResponse.json();
+    const userAccessToken = userTokenData.access_token;
     
-    if (!accessToken) {
-      console.log("[CALLBACK] No access token in response");
-      return res.redirect('/login?error=no_access_token');
+    if (!userAccessToken) {
+      console.log("[LOGIN] No user access token received");
+      return res.status(401).json({ message: "Authentication failed" });
     }
     
-    // Parse user information from token
-    const user = parseUserFromToken(accessToken);
+    // Parse user information from the user's token
+    const user = parseUserFromToken(userAccessToken);
     
-    console.log("[CALLBACK] SUCCESS! User authenticated:", user.username);
+    console.log("[LOGIN] SUCCESS! User authenticated:", user.username);
     
-    // Store in session
+    // Store user session
     req.session.user = user;
-    req.session.accessToken = accessToken;
-    req.session.cookie.maxAge = 24 * 60 * 60 * 1000; // 24 hours
+    req.session.accessToken = userAccessToken;
     
-    // Clean up OAuth state
-    delete req.session.oauthState;
-    delete req.session.codeVerifier;
+    // Set cookie duration based on rememberMe
+    if (rememberMe) {
+      req.session.cookie.maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
+    } else {
+      req.session.cookie.maxAge = 24 * 60 * 60 * 1000; // 1 day
+    }
     
-    console.log("[CALLBACK] Session created for user:", user.username);
+    console.log("[LOGIN] Session created for user:", user.username);
     
-    // Redirect to dashboard
-    res.redirect('/');
+    res.json({ 
+      message: "Login successful", 
+      user: { 
+        id: user.id, 
+        username: user.username, 
+        email: user.email 
+      } 
+    });
     
   } catch (error: any) {
-    console.log("[CALLBACK] Error during token exchange:", error?.message);
-    return res.redirect('/login?error=server_error');
+    console.log("[LOGIN] Authentication error:", error?.message);
+    return res.status(500).json({ message: "Authentication service error" });
   }
-});
-
-// Legacy login endpoint (kept for compatibility)
-router.post("/login", async (req: Request, res: Response) => {
-  // For Authorization Code Flow, redirect to /authorize endpoint
-  res.json({ 
-    message: "Use authorization code flow",
-    redirectTo: "/api/auth/authorize"
-  });
 });
 
 // Logout endpoint
