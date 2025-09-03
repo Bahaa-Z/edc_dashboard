@@ -187,17 +187,19 @@ export function validateJWT(req: Request, res: Response, next: any) {
 
   // For mock tokens (known users), validate with client secret
   try {
-    const decoded = jwt.verify(token, keycloakConfig.KC_CLIENT_SECRET!) as any;
+    const decoded = jwt.verify(token, keycloakConfig.KC_CLIENT_SECRET!, { algorithms: ['HS256'] }) as any;
     if (decoded.aud === keycloakConfig.KC_CLIENT_ID) {
       (req as any).user = {
         id: decoded.sub,
         username: decoded.preferred_username,
         email: decoded.email
       };
+      console.log("[JWT] Mock token validated for user:", decoded.preferred_username);
       return next();
     }
   } catch (err) {
     // Not a mock token, try real Keycloak validation
+    console.log("[JWT] Not a mock token, trying Keycloak validation");
   }
 
   // Validate real Keycloak JWT token
@@ -207,7 +209,7 @@ export function validateJWT(req: Request, res: Response, next: any) {
     algorithms: ['RS256']
   }, (err, decoded: any) => {
     if (err) {
-      console.log("[JWT] Token validation failed:", err.message);
+      console.log("[JWT] Real token validation failed:", err.message);
       return res.status(401).json({ message: "Invalid or expired token" });
     }
 
@@ -218,7 +220,7 @@ export function validateJWT(req: Request, res: Response, next: any) {
       email: decoded.email
     };
 
-    console.log("[JWT] Token validated for user:", (req as any).user.username);
+    console.log("[JWT] Real token validated for user:", (req as any).user.username);
     next();
   });
 }
