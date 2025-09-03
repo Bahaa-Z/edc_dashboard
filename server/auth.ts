@@ -69,60 +69,8 @@ router.post("/token", async (req: Request, res: Response) => {
   const { username, password } = body;
   console.log("[TOKEN] Getting user JWT token for:", username);
 
-  // First check if user exists in known users to avoid Keycloak errors
-  const knownUsers: Record<string, { uuid: string; email: string; password: string }> = {
-    "devaji.patil@arena2036.de": { 
-      uuid: "44c5e668-980a-4cb3-9c28-6916faf1a2a3", 
-      email: "devaji.patil@arena2036.de",
-      password: "adminconsolepwcentralidp4"
-    },
-    "bahaa.ziadah@arena2036.de": { 
-      uuid: "b12a3456-789b-4cde-9f01-234567890abc", 
-      email: "bahaa.ziadah@arena2036.de",
-      password: "arenapwedc25"
-    }
-  };
-
-  const userKey = username.toLowerCase();
-  const knownUser = knownUsers[userKey];
-  
-  // If it's a known user with correct password, create token immediately (no Keycloak call)
-  if (knownUser && password === knownUser.password) {
-    console.log("[TOKEN] Using known user - no Keycloak call needed for:", knownUser.email);
-    
-    // Create a realistic JWT token for known users
-    const userToken = jwt.sign(
-      {
-        sub: knownUser.uuid,
-        preferred_username: knownUser.email,
-        email: knownUser.email,
-        iss: ISSUER_URL,
-        aud: keycloakConfig.KC_CLIENT_ID,
-        exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60), // 24 hours
-        iat: Math.floor(Date.now() / 1000),
-        typ: "Bearer",
-        azp: keycloakConfig.KC_CLIENT_ID,
-      },
-      keycloakConfig.KC_CLIENT_SECRET!, 
-      { algorithm: 'HS256' }
-    );
-
-    console.log("[TOKEN] SUCCESS! Created user token (no Keycloak errors):", knownUser.email);
-    
-    return res.json({
-      access_token: userToken,
-      token_type: "Bearer", 
-      expires_in: 24 * 60 * 60,
-      user: {
-        id: knownUser.uuid,
-        username: knownUser.email,
-        email: knownUser.email
-      }
-    });
-  }
-
-  // Only try Keycloak for unknown users (to avoid user_not_found for known ones)
-  console.log("[TOKEN] Unknown user, trying Keycloak authentication for:", username);
+  // Try Keycloak authentication for all users (proper integration)
+  console.log("[TOKEN] Attempting Keycloak authentication for:", username);
   
   try {
     // Get user JWT token directly from Keycloak (only for unknown users)
@@ -145,7 +93,18 @@ router.post("/token", async (req: Request, res: Response) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.log("[TOKEN] Keycloak authentication failed for unknown user:", response.status, errorText);
+      console.log("[TOKEN] Keycloak authentication failed:", response.status, errorText);
+      
+      // Check if it's user_not_found error - this means user is from external IdP
+      if (errorText.includes("user_not_found") || errorText.includes("Invalid user credentials")) {
+        console.log("[TOKEN] User may be from external Identity Provider - password grant not supported");
+        console.log("[TOKEN] Suggestion: Use Authorization Code flow instead of password grant");
+        return res.status(401).json({ 
+          message: "External Identity Provider users cannot use password authentication",
+          error: "external_idp_user",
+          suggestion: "Please use single sign-on through your organization"
+        });
+      }
       
       return res.status(401).json({ message: "Invalid credentials" });
     }
@@ -249,13 +208,76 @@ router.post("/logout", (req: Request, res: Response) => {
   res.json({ message: "Logout successful - remove token on client side" });
 });
 
-// Legacy OAuth2 endpoints (not used)
+// OAuth2 Authorization Code Flow (for external IdP users)
 router.get("/authorize", (req: Request, res: Response) => {
-  res.redirect('/login');
+  const state = require('crypto').randomBytes(16).toString('hex');
+  const authUrl = `${KEYCLOAK_BASE}/protocol/openid-connect/auth?` +
+    `client_id=${keycloakConfig.KC_CLIENT_ID}&` +
+    `response_type=code&` +
+    `scope=openid profile email&` +
+    `redirect_uri=${encodeURIComponent('http://localhost:5000/api/auth/callback')}&` +
+    `state=${state}`;
+  
+  console.log("[OAUTH] Redirecting to Keycloak for authorization:", authUrl);
+  res.redirect(authUrl);
 });
 
-router.get("/callback", (req: Request, res: Response) => {
-  res.redirect('/login');
+// OAuth2 Callback (exchange code for token)
+router.get("/callback", async (req: Request, res: Response) => {
+  const { code, state } = req.query;
+  
+  if (!code) {
+    console.log("[OAUTH] No authorization code received");
+    return res.redirect('/login?error=no_code');
+  }
+
+  try {
+    console.log("[OAUTH] Exchanging authorization code for tokens");
+    
+    // Exchange code for tokens
+    const tokenBody = new URLSearchParams();
+    tokenBody.set("grant_type", "authorization_code");
+    tokenBody.set("client_id", keycloakConfig.KC_CLIENT_ID);
+    tokenBody.set("client_secret", keycloakConfig.KC_CLIENT_SECRET!);
+    tokenBody.set("code", code as string);
+    tokenBody.set("redirect_uri", "http://localhost:5000/api/auth/callback");
+
+    const tokenResponse = await fetch(TOKEN_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json"
+      },
+      body: tokenBody.toString(),
+    });
+
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text();
+      console.log("[OAUTH] Token exchange failed:", tokenResponse.status, errorText);
+      return res.redirect('/login?error=token_exchange_failed');
+    }
+
+    const tokenData = await tokenResponse.json();
+    const accessToken = tokenData.access_token;
+
+    // Get user info from token
+    const decoded = decodeToken<Record<string, any>>(accessToken);
+    const user = {
+      id: decoded?.sub || "unknown",
+      username: decoded?.preferred_username || decoded?.email || "user",
+      email: decoded?.email
+    };
+
+    console.log("[OAUTH] SUCCESS! OAuth2 flow completed for user:", user.username);
+
+    // Store token in session or redirect with token
+    // For now, redirect to frontend with user info
+    res.redirect(`/?oauth_success=true&user=${encodeURIComponent(JSON.stringify(user))}&token=${encodeURIComponent(accessToken)}`);
+
+  } catch (error: any) {
+    console.log("[OAUTH] OAuth2 callback error:", error?.message);
+    res.redirect('/login?error=oauth_failed');
+  }
 });
 
 export default router;
