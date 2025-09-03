@@ -87,83 +87,21 @@ export default function Login() {
               </p>
             </div>
 
-            {/* Login Form */}
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              {/* Username */}
-              <div>
-                <Label htmlFor="username">{t("username")}</Label>
-                <Input
-                  id="username"
-                  type="text"
-                  autoComplete="username"
-                  {...form.register("username")}
-                  className="mt-1 bg-white"
-                  data-testid="username-input"
-                />
-                {form.formState.errors.username && (
-                  <p className="text-sm text-red-600 mt-1">
-                    {form.formState.errors.username.message}
-                  </p>
-                )}
-              </div>
-
-              {/* Password */}
-              <div>
-                <Label htmlFor="password">{t("password")}</Label>
-                <div className="relative mt-1">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
-                    {...form.register("password")}
-                    className="bg-white pr-10"
-                    data-testid="password-input"
-                  />
-                  <button
-                    type="button"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                    onClick={() => setShowPassword((s) => !s)}
-                  >
-                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </button>
-                </div>
-                {form.formState.errors.password && (
-                  <p className="text-sm text-red-600 mt-1">
-                    {form.formState.errors.password.message}
-                  </p>
-                )}
-              </div>
-
-              {/* Remember Me */}
-              <div className="flex items-center justify-between text-sm text-gray-600">
-                <label className="flex items-center gap-2 select-none">
-                  <input
-                    type="checkbox"
-                    {...form.register("rememberMe")}
-                    className="h-4 w-4 text-[var(--arena-orange)]"
-                    data-testid="remember-me-checkbox"
-                  />
-                  Remember me
-                </label>
-              </div>
-
+            {/* SDE-Style Keycloak Authentication */}
+            <div className="space-y-4">
               <Button
-                type="submit"
-                disabled={loginMutation.isPending}
-                className="w-full bg-[#F28C00] hover:bg-[#d67b00] text-white"
-                data-testid="login-button"
+                type="button"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white text-lg py-3"
+                onClick={() => window.location.href = '/api/auth/authorize'}
               >
-                {loginMutation.isPending ? (
-                  <div className="flex items-center justify-center space-x-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Logging in...</span>
-                  </div>
-                ) : (
-                  "Login"
-                )}
+                🔐 Sign in with Keycloak
               </Button>
-            </form>
+              
+              <div className="text-center text-sm text-gray-600">
+                <p>Same authentication as SDE application</p>
+                <p className="mt-1">Uses Authorization Code Flow with your organization credentials</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
