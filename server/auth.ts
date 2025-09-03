@@ -7,18 +7,18 @@ import jwksClient from "jwks-rsa";
 
 const router = express.Router();
 
-// Environment configuration - SDE Resource Server Style
+// Environment configuration - Public Client (like working Keycloak clients)
 const keycloakConfig = {
   KC_URL: process.env.KC_URL || "https://centralidp.arena2036-x.de/auth",
   KC_REALM: process.env.KC_REALM || "CX-Central", 
-  KC_CLIENT_ID: "Cl2-CX-Portal", 
-  KC_CLIENT_SECRET: process.env.KC_CLIENT_SECRET_EDC || "dummy-secret-for-resource-server",
+  KC_CLIENT_ID: "Cl2-CX-Portal", // Public client with Direct Access Grants enabled
+  KC_CLIENT_SECRET: null, // Public client doesn't need secret
 };
 
-console.log("[AUTH] SDE-Style JWT Resource Server Configuration:");
+console.log("[AUTH] Login Form + Real Keycloak Authentication:");
 console.log("- KC_CLIENT_ID:", keycloakConfig.KC_CLIENT_ID);
-console.log("- Uses Authorization Code Flow (like SDE)");
-console.log("- No Password Grant - redirects to Keycloak");
+console.log("- Client Type: Public (no client secret)");
+console.log("- Direct Access Grants: Enabled for password authentication");
 
 // JWT Resource Server Configuration (like SDE)
 const KEYCLOAK_BASE = `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}`;
@@ -48,14 +48,73 @@ function getKey(header: any, callback: any) {
   });
 }
 
-// SDE-Style Authentication: Authorization Code Flow Only 
+// Password Grant Authentication with Public Client
 router.post("/token", async (req: Request, res: Response) => {
-  // SDE doesn't use password grant - redirect to Authorization Code Flow  
-  res.json({
-    message: "This application uses Authorization Code Flow like SDE",
-    redirectUrl: `/api/auth/authorize`,
-    explanation: "Click 'Sign in with Keycloak' to authenticate like SDE application"
-  });
+  const { username, password } = req.body;
+
+  if (!username || !password) {
+    return res.status(400).json({ message: "Username and password are required" });
+  }
+
+  console.log("[TOKEN] Attempting Keycloak authentication for:", username);
+
+  try {
+    // Public client password grant (no client_secret)
+    const tokenBody = new URLSearchParams();
+    tokenBody.set("grant_type", "password");
+    tokenBody.set("client_id", keycloakConfig.KC_CLIENT_ID);
+    // No client_secret for public client
+    tokenBody.set("username", username);
+    tokenBody.set("password", password);
+    tokenBody.set("scope", "openid profile email");
+
+    const response = await fetch(TOKEN_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json"
+      },
+      body: tokenBody.toString(),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.log("[TOKEN] Keycloak authentication failed:", response.status, errorText);
+      
+      return res.status(401).json({ 
+        message: "Invalid username or password",
+        keycloakError: errorText
+      });
+    }
+
+    const tokenData = await response.json();
+    const accessToken = tokenData.access_token;
+
+    if (!accessToken) {
+      return res.status(401).json({ message: "No access token received" });
+    }
+
+    // Parse user from real Keycloak token
+    const decoded = decodeToken<Record<string, any>>(accessToken);
+    const user = {
+      id: decoded?.sub || "user",
+      username: decoded?.preferred_username || decoded?.email || username,
+      email: decoded?.email || username
+    };
+
+    console.log("[TOKEN] SUCCESS! Real Keycloak token for user:", user.username);
+
+    res.json({
+      access_token: accessToken,
+      token_type: tokenData.token_type || "Bearer",
+      expires_in: tokenData.expires_in || 3600,
+      user: user
+    });
+
+  } catch (error: any) {
+    console.log("[TOKEN] Authentication error:", error?.message);
+    return res.status(500).json({ message: "Authentication service error" });
+  }
 });
 
 // Legacy login endpoint (redirects to Authorization Code Flow)
@@ -76,22 +135,7 @@ export function validateJWT(req: Request, res: Response, next: any) {
 
   const token = authHeader.substring(7); // Remove 'Bearer '
 
-  // For mock tokens (fallback), validate with client secret
-  try {
-    const decoded = jwt.verify(token, keycloakConfig.KC_CLIENT_SECRET!, { algorithms: ['HS256'] }) as any;
-    if (decoded.aud === keycloakConfig.KC_CLIENT_ID) {
-      (req as any).user = {
-        id: decoded.sub,
-        username: decoded.preferred_username,
-        email: decoded.email
-      };
-      console.log("[JWT] Mock token validated for user:", decoded.preferred_username);
-      return next();
-    }
-  } catch (err) {
-    // Not a mock token, try real Keycloak validation
-    console.log("[JWT] Not a mock token, trying Keycloak validation");
-  }
+  // Skip mock token validation for public client - use only real Keycloak validation
 
   // Validate real Keycloak JWT token
   jwt.verify(token, getKey, {

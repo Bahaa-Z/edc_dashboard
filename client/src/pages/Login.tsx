@@ -87,21 +87,96 @@ export default function Login() {
               </p>
             </div>
 
-            {/* SDE-Style Keycloak Authentication */}
-            <div className="space-y-4">
-              <Button
-                type="button"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white text-lg py-3"
-                onClick={() => window.location.href = '/api/auth/authorize'}
-              >
-                🔐 Sign in with Keycloak
-              </Button>
-              
-              <div className="text-center text-sm text-gray-600">
-                <p>Same authentication as SDE application</p>
-                <p className="mt-1">Uses Authorization Code Flow with your organization credentials</p>
+            {/* Login Form */}
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              {/* Username */}
+              <div className="space-y-2">
+                <Label htmlFor="username" className="text-sm font-medium text-gray-700">
+                  {t("username")}
+                </Label>
+                <Input
+                  {...form.register("username")}
+                  id="username"
+                  type="text"
+                  placeholder="Enter username"
+                  className="w-full"
+                  data-testid="login-username"
+                />
+                {form.formState.errors.username && (
+                  <p className="text-sm text-red-600" data-testid="login-username-error">
+                    {form.formState.errors.username.message}
+                  </p>
+                )}
               </div>
-            </div>
+
+              {/* Password */}
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-sm font-medium text-gray-700">
+                  {t("password")}
+                </Label>
+                <div className="relative">
+                  <Input
+                    {...form.register("password")}
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter password"
+                    className="w-full pr-10"
+                    data-testid="login-password"
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 flex items-center pr-3"
+                    onClick={() => setShowPassword(!showPassword)}
+                    data-testid="toggle-password"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+                    )}
+                  </button>
+                </div>
+                {form.formState.errors.password && (
+                  <p className="text-sm text-red-600" data-testid="login-password-error">
+                    {form.formState.errors.password.message}
+                  </p>
+                )}
+              </div>
+
+              {/* Remember Me */}
+              <div className="flex items-center space-x-2">
+                <input
+                  {...form.register("rememberMe")}
+                  id="rememberMe"
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300 text-[#F28C00] focus:ring-[#F28C00]"
+                  data-testid="login-remember-me"
+                />
+                <Label
+                  htmlFor="rememberMe"
+                  className="text-sm font-medium text-gray-700 cursor-pointer"
+                >
+                  Remember me
+                </Label>
+              </div>
+
+              {/* Submit Button */}
+              <Button
+                type="submit"
+                disabled={loginMutation.isPending}
+                className="w-full bg-[#F28C00] hover:bg-[#d67b00] text-white"
+                data-testid="login-submit"
+              >
+                {loginMutation.isPending ? (
+                  <div className="flex items-center justify-center">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    Logging in...
+                  </div>
+                ) : (
+Login
+                )}
+              </Button>
+            </form>
           </CardContent>
         </Card>
       </div>
