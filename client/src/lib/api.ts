@@ -20,10 +20,25 @@ async function safeJson<T>(res: Response): Promise<T> {
 }
 
 export const api = {
-  // ---------- Auth (Session-Cookie based) ----------
-  login: async (credentials: LoginCredentials) => {
-    const res = await apiRequest("POST", "/api/auth/login", credentials);
-    return res.json() as Promise<{ user: { id: string; username: string } }>;
+  // ---------- Auth (JWT Token based - SDE Style) ----------
+  getToken: async (credentials: LoginCredentials) => {
+    const res = await fetch("/api/auth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(credentials)
+    });
+    
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ message: "Authentication failed" }));
+      throw new Error(error.message);
+    }
+    
+    return res.json() as Promise<{ 
+      access_token: string; 
+      token_type: string; 
+      expires_in: number;
+      user: { id: string; username: string; email?: string } 
+    }>;
   },
 
   logout: async () => {

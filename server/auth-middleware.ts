@@ -1,19 +1,12 @@
-// server/auth-middleware.ts
+// server/auth-middleware.ts - JWT Resource Server Middleware (SDE Style)
 import type { Request, Response, NextFunction } from "express";
-import { isTokenValid, decodeToken } from "./token";
+import { validateJWT } from "./auth";
 
 /**
- * Checks session-based authentication using Express session
- * and attaches user data from session to req.user.
+ * JWT Authentication Middleware (like SDE backend)
+ * Validates JWT tokens from Authorization header instead of sessions
  */
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  // Check if user is logged in via session (created by /api/auth/login)
-  if (!req.session.user) {
-    return res.status(401).json({ message: "Unauthorized - No active session" });
-  }
-
-  // Use the user data from the session (the real user, not service account)
-  (req as any).user = req.session.user;
-  
-  next();
+  // Use JWT validation instead of session-based auth
+  validateJWT(req, res, next);
 }

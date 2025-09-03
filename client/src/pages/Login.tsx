@@ -26,11 +26,12 @@ export default function Login() {
   });
 
   const loginMutation = useMutation({
-    mutationFn: api.login,
+    mutationFn: api.getToken,
     onSuccess: (data, values) => {
+      // Store JWT token and user info (SDE style)
       loginUser(
-        { id: data.user.id, username: data.user.username },
-        "", // Server-Session basiert
+        { id: data.user.id, username: data.user.username, email: data.user.email },
+        data.access_token, // JWT Token instead of session
         values.rememberMe ?? false
       );
       toast({ title: "Success", description: "Logged in successfully." });

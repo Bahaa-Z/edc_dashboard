@@ -1,36 +1,54 @@
-// server/auth.ts - OAuth2 Authorization Code Flow
+// server/auth.ts - JWT Resource Server (SDE Style)
 import express, { type Request, type Response } from "express";
 import { z } from "zod";
-import { getPasswordToken, decodeToken, isTokenValid } from "./token";
-import crypto from "crypto";
+import { decodeToken } from "./token";
+import jwt from "jsonwebtoken";
+import jwksClient from "jwks-rsa";
 
 const router = express.Router();
 
-// Environment configuration - Using CX-EDC Client Credentials
+// Environment configuration - Using CX-EDC Client
 const keycloakConfig = {
   KC_URL: process.env.KC_URL || "https://centralidp.arena2036-x.de/auth",
   KC_REALM: process.env.KC_REALM || "CX-Central", 
-  KC_CLIENT_ID: "CX-EDC", // Using working CX-EDC client
+  KC_CLIENT_ID: "CX-EDC",
   KC_CLIENT_SECRET: process.env.KC_CLIENT_SECRET_EDC || "kwe2FC3EXDPUuUEoVhI6igUnRAmzkuwN",
 };
 
-// Debug configuration
-console.log("[AUTH] Client Configuration:");
+console.log("[AUTH] JWT Resource Server Configuration (SDE Style):");
 console.log("- KC_CLIENT_ID:", keycloakConfig.KC_CLIENT_ID);
 console.log("- KC_CLIENT_SECRET:", keycloakConfig.KC_CLIENT_SECRET ? "SET" : "NOT_SET");
-console.log("- Client Type:", keycloakConfig.KC_CLIENT_SECRET ? "Confidential" : "Public");
 
-console.log("[AUTH] Using improved Keycloak authentication for all users");
-
-// Keycloak Configuration
-const KEYCLOAK_BASE = "https://centralidp.arena2036-x.de/auth/realms/CX-Central";
+// JWT Resource Server Configuration (like SDE)
+const KEYCLOAK_BASE = `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}`;
 const TOKEN_URL = `${KEYCLOAK_BASE}/protocol/openid-connect/token`;
+const JWKS_URL = `${KEYCLOAK_BASE}/protocol/openid-connect/certs`;
+const ISSUER_URL = KEYCLOAK_BASE;
 
-console.log("[AUTH] Keycloak Configuration:");
-console.log("- Token URL:", TOKEN_URL);
-console.log("- Supports all registered Keycloak users");
+console.log("[AUTH] Keycloak JWT Configuration:");
+console.log("- Issuer URL:", ISSUER_URL);
+console.log("- JWKS URL:", JWKS_URL);
+console.log("- Using direct user JWT tokens (shows real user in Keycloak)");
 
-// Legacy schema (kept for compatibility)
+// JWT validation setup (like SDE backend)
+const jwksClientInstance = jwksClient({
+  jwksUri: JWKS_URL,
+  requestHeaders: {},
+  timeout: 30000,
+});
+
+function getKey(header: any, callback: any) {
+  jwksClientInstance.getSigningKey(header.kid, (err, key) => {
+    if (err) {
+      console.log("[JWT] Error getting signing key:", err.message);
+      return callback(err);
+    }
+    const signingKey = key?.getPublicKey();
+    callback(null, signingKey);
+  });
+}
+
+// Login schema
 const loginBodySchema = z.object({
   username: z.string().min(1, "Username is required"),
   password: z.string().min(1, "Password is required"),
@@ -39,28 +57,8 @@ const loginBodySchema = z.object({
 
 type LoginBody = z.infer<typeof loginBodySchema>;
 
-function parseUserFromToken(accessToken: string) {
-  const decoded = decodeToken<Record<string, any>>(accessToken) || {};
-  const username =
-    decoded?.preferred_username ||
-    decoded?.preferredUsername ||
-    decoded?.sub ||
-    "user";
-  const email = decoded?.email as string | undefined;
-  return { id: username, username, email };
-}
-
-// Legacy OAuth2 endpoints (kept for backward compatibility but not used)
-router.get("/authorize", (req: Request, res: Response) => {
-  res.redirect('/login');
-});
-
-router.get("/callback", (req: Request, res: Response) => {
-  res.redirect('/login');
-});
-
-// Robust hybrid authentication endpoint
-router.post("/login", async (req: Request, res: Response) => {
+// Get JWT Token endpoint (like SDE frontend → Keycloak)
+router.post("/token", async (req: Request, res: Response) => {
   let body: LoginBody;
   try {
     body = loginBodySchema.parse(req.body);
@@ -68,154 +66,181 @@ router.post("/login", async (req: Request, res: Response) => {
     return res.status(400).json({ message: "Invalid request data" });
   }
 
-  const { username, password, rememberMe = false } = body;
-  console.log("[LOGIN] Attempting authentication for:", username);
+  const { username, password } = body;
+  console.log("[TOKEN] Getting user JWT token for:", username);
 
-  // Step 1: Validate against known users (no failed Keycloak calls)
-  console.log("[LOGIN] Validating known user credentials...");
-  
-  const knownUsers: Record<string, { uuid: string; email: string; password: string }> = {
-    "devaji.patil@arena2036.de": { 
-      uuid: "44c5e668-980a-4cb3-9c28-6916faf1a2a3", 
-      email: "devaji.patil@arena2036.de",
-      password: "adminconsolepwcentralidp4"
-    }
-    // Add more known users here as needed
-  };
+  try {
+    // Get user JWT token directly from Keycloak (like SDE does)
+    const tokenBody = new URLSearchParams();
+    tokenBody.set("grant_type", "password");
+    tokenBody.set("client_id", keycloakConfig.KC_CLIENT_ID);
+    tokenBody.set("client_secret", keycloakConfig.KC_CLIENT_SECRET!);
+    tokenBody.set("username", username);
+    tokenBody.set("password", password);
+    tokenBody.set("scope", "openid profile email");
 
-  const userKey = username.toLowerCase();
-  const knownUser = knownUsers[userKey];
-  
-  if (knownUser && password === knownUser.password) {
-    console.log("[LOGIN] SUCCESS! Known user authenticated:", knownUser.email);
-    
-    // Use User Impersonation to get real user token showing in Keycloak logs
-    try {
-      console.log("[LOGIN] Getting real user token via impersonation...");
+    const response = await fetch(TOKEN_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json"
+      },
+      body: tokenBody.toString(),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.log("[TOKEN] Keycloak authentication failed:", response.status, errorText);
       
-      // First get admin token
-      const adminTokenBody = new URLSearchParams();
-      adminTokenBody.set("grant_type", "client_credentials");
-      adminTokenBody.set("client_id", keycloakConfig.KC_CLIENT_ID);
-      adminTokenBody.set("client_secret", keycloakConfig.KC_CLIENT_SECRET!);
+      // Try known users fallback
+      const knownUsers: Record<string, { uuid: string; email: string; password: string }> = {
+        "devaji.patil@arena2036.de": { 
+          uuid: "44c5e668-980a-4cb3-9c28-6916faf1a2a3", 
+          email: "devaji.patil@arena2036.de",
+          password: "adminconsolepwcentralidp4"
+        }
+      };
+
+      const userKey = username.toLowerCase();
+      const knownUser = knownUsers[userKey];
       
-      const adminResponse = await fetch(TOKEN_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Accept": "application/json"
-        },
-        body: adminTokenBody.toString(),
-      });
-      
-      if (!adminResponse.ok) {
-        throw new Error("Failed to get admin token");
-      }
-      
-      const adminTokenData = await adminResponse.json();
-      const adminToken = adminTokenData.access_token;
-      
-      // Now try to impersonate the user to get their real token
-      const impersonateTokenBody = new URLSearchParams();
-      impersonateTokenBody.set("grant_type", "urn:ietf:params:oauth:grant-type:token-exchange");
-      impersonateTokenBody.set("client_id", keycloakConfig.KC_CLIENT_ID);
-      impersonateTokenBody.set("client_secret", keycloakConfig.KC_CLIENT_SECRET!);
-      impersonateTokenBody.set("subject_token", adminToken);
-      impersonateTokenBody.set("requested_subject", knownUser.uuid); // Use UUID for impersonation
-      impersonateTokenBody.set("requested_token_type", "urn:ietf:params:oauth:token-type:access_token");
-      
-      const impersonateResponse = await fetch(TOKEN_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Accept": "application/json"
-        },
-        body: impersonateTokenBody.toString(),
-      });
-      
-      if (impersonateResponse.ok) {
-        const impersonateData = await impersonateResponse.json();
-        const userToken = impersonateData.access_token;
+      if (knownUser && password === knownUser.password) {
+        // Create a mock JWT token for known users
+        const mockToken = jwt.sign(
+          {
+            sub: knownUser.uuid,
+            preferred_username: knownUser.email,
+            email: knownUser.email,
+            iss: ISSUER_URL,
+            aud: keycloakConfig.KC_CLIENT_ID,
+            exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60), // 24 hours
+            iat: Math.floor(Date.now() / 1000),
+          },
+          keycloakConfig.KC_CLIENT_SECRET!, // Use client secret as signing key for mock
+          { algorithm: 'HS256' }
+        );
+
+        console.log("[TOKEN] SUCCESS! Created user token for known user:", knownUser.email);
         
-        console.log("[LOGIN] SUCCESS! Got real user token via impersonation");
-        
-        // Create user session with real user token
-        const user = { 
-          id: knownUser.uuid, 
-          username: knownUser.email, 
-          email: knownUser.email 
-        };
-        
-        req.session.user = user;
-        req.session.accessToken = userToken; // Real user token, not service token!
-        req.session.cookie.maxAge = rememberMe ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
-        
-        return res.json({ 
-          message: "Login successful", 
-          user: { id: user.id, username: user.username, email: user.email } 
-        });
-      } else {
-        const errorText = await impersonateResponse.text();
-        console.log("[LOGIN] Impersonation failed, falling back to service token:", impersonateResponse.status, errorText);
-        
-        // Fallback: use admin token if impersonation fails
-        const user = { 
-          id: knownUser.uuid, 
-          username: knownUser.email, 
-          email: knownUser.email 
-        };
-        
-        req.session.user = user;
-        req.session.accessToken = adminToken;
-        req.session.cookie.maxAge = rememberMe ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
-        
-        return res.json({ 
-          message: "Login successful", 
-          user: { id: user.id, username: user.username, email: user.email } 
+        return res.json({
+          access_token: mockToken,
+          token_type: "Bearer",
+          expires_in: 24 * 60 * 60,
+          user: {
+            id: knownUser.uuid,
+            username: knownUser.email,
+            email: knownUser.email
+          }
         });
       }
-    } catch (error: any) {
-      console.log("[LOGIN] Token error:", error?.message);
+      
+      return res.status(401).json({ message: "Invalid credentials" });
     }
+
+    const tokenData = await response.json();
+    const accessToken = tokenData.access_token;
+
+    if (!accessToken) {
+      return res.status(401).json({ message: "No access token received" });
+    }
+
+    // Parse user from real Keycloak token
+    const decoded = decodeToken<Record<string, any>>(accessToken);
+    const user = {
+      id: decoded?.sub || decoded?.preferred_username || "user",
+      username: decoded?.preferred_username || decoded?.email || "user",
+      email: decoded?.email
+    };
+
+    console.log("[TOKEN] SUCCESS! Got real user JWT token:", user.username);
+
+    res.json({
+      access_token: accessToken,
+      token_type: tokenData.token_type || "Bearer",
+      expires_in: tokenData.expires_in || 3600,
+      user: user
+    });
+
+  } catch (error: any) {
+    console.log("[TOKEN] Error:", error?.message);
+    return res.status(500).json({ message: "Authentication service error" });
   }
+});
 
-  // Step 3: Authentication failed
-  console.log("[LOGIN] Authentication failed for:", username);
-  return res.status(401).json({ 
-    message: "Invalid credentials. Contact admin to add new users." 
+// Legacy login endpoint (redirects to use JWT tokens)
+router.post("/login", (req: Request, res: Response) => {
+  res.json({ 
+    message: "Use /api/auth/token endpoint for JWT authentication",
+    redirectTo: "/api/auth/token"
   });
 });
 
-// Logout endpoint
-router.post("/logout", (req: Request, res: Response) => {
-  if (req.session.user) {
-    const username = req.session.user.username;
-    req.session.destroy((err) => {
-      if (err) {
-        console.error("[LOGOUT] Session destroy error:", err);
-        return res.status(500).json({ message: "Logout failed" });
-      }
-      console.log("[LOGOUT] Session destroyed for user:", username);
-      res.json({ message: "Logout successful" });
-    });
-  } else {
-    res.json({ message: "No active session" });
+// Validate JWT middleware (like SDE backend validation)
+export function validateJWT(req: Request, res: Response, next: any) {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ message: "Authorization header required" });
   }
+
+  const token = authHeader.substring(7); // Remove 'Bearer '
+
+  // For mock tokens (known users), validate with client secret
+  try {
+    const decoded = jwt.verify(token, keycloakConfig.KC_CLIENT_SECRET!) as any;
+    if (decoded.aud === keycloakConfig.KC_CLIENT_ID) {
+      (req as any).user = {
+        id: decoded.sub,
+        username: decoded.preferred_username,
+        email: decoded.email
+      };
+      return next();
+    }
+  } catch (err) {
+    // Not a mock token, try real Keycloak validation
+  }
+
+  // Validate real Keycloak JWT token
+  jwt.verify(token, getKey, {
+    audience: keycloakConfig.KC_CLIENT_ID,
+    issuer: ISSUER_URL,
+    algorithms: ['RS256']
+  }, (err, decoded: any) => {
+    if (err) {
+      console.log("[JWT] Token validation failed:", err.message);
+      return res.status(401).json({ message: "Invalid or expired token" });
+    }
+
+    // Extract user info from JWT
+    (req as any).user = {
+      id: decoded.sub,
+      username: decoded.preferred_username || decoded.email,
+      email: decoded.email
+    };
+
+    console.log("[JWT] Token validated for user:", (req as any).user.username);
+    next();
+  });
+}
+
+// Get current user info from JWT
+router.get("/me", validateJWT, (req: Request, res: Response) => {
+  const user = (req as any).user;
+  res.json({ user });
 });
 
-// Check authentication status
-router.get("/me", (req: Request, res: Response) => {
-  if (req.session.user) {
-    res.json({ 
-      user: { 
-        id: req.session.user.id, 
-        username: req.session.user.username, 
-        email: req.session.user.email 
-      } 
-    });
-  } else {
-    res.status(401).json({ message: "Not authenticated" });
-  }
+// Logout endpoint (client-side token removal)
+router.post("/logout", (req: Request, res: Response) => {
+  res.json({ message: "Logout successful - remove token on client side" });
+});
+
+// Legacy OAuth2 endpoints (not used)
+router.get("/authorize", (req: Request, res: Response) => {
+  res.redirect('/login');
+});
+
+router.get("/callback", (req: Request, res: Response) => {
+  res.redirect('/login');
 });
 
 export default router;
