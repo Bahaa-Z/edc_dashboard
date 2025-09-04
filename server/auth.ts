@@ -129,7 +129,15 @@ router.post("/login", (req: Request, res: Response) => {
   
   // Für Keycloak-Users: Authorization Code Flow
   const state = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  
+  // Get correct Replit URL
+  const replId = process.env.REPL_ID;
+  const baseUrl = replId 
+    ? `https://${replId}.kirk.prod.repl.run`
+    : `${req.protocol}://${req.get('host')}`; // fallback to localhost for dev
+  
+  console.log("[LOGIN] Using base URL:", baseUrl);
+  
   const authUrl = `${KEYCLOAK_BASE}/protocol/openid-connect/auth?` +
     `client_id=${keycloakConfig.KC_CLIENT_ID}&` +
     `response_type=code&` +
@@ -138,7 +146,8 @@ router.post("/login", (req: Request, res: Response) => {
     `state=${state}&` +
     `login_hint=${encodeURIComponent(username)}`;
     
-  console.log("[LOGIN] Providing Keycloak auth URL for user:", username);
+  console.log("[LOGIN] Keycloak auth URL for user:", username);
+  console.log("[LOGIN] Redirect URI:", `${baseUrl}/api/auth/callback`);
   
   res.json({
     authUrl: authUrl,
@@ -195,7 +204,13 @@ router.post("/logout", (req: Request, res: Response) => {
 // OAuth2 Authorization Code Flow (for Keycloak users)
 router.get("/authorize", (req: Request, res: Response) => {
   const state = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  
+  // Get correct Replit URL
+  const replId = process.env.REPL_ID;
+  const baseUrl = replId 
+    ? `https://${replId}.kirk.prod.repl.run`
+    : `${req.protocol}://${req.get('host')}`; // fallback to localhost for dev
+    
   const authUrl = `${KEYCLOAK_BASE}/protocol/openid-connect/auth?` +
     `client_id=${keycloakConfig.KC_CLIENT_ID}&` +
     `response_type=code&` +
@@ -203,6 +218,7 @@ router.get("/authorize", (req: Request, res: Response) => {
     `redirect_uri=${encodeURIComponent(`${baseUrl}/api/auth/callback`)}&` +
     `state=${state}`;
   
+  console.log("[OAUTH] Using base URL:", baseUrl);
   console.log("[OAUTH] Redirecting to Keycloak for authorization:", authUrl);
   res.redirect(authUrl);
 });
@@ -225,7 +241,16 @@ router.get("/callback", async (req: Request, res: Response) => {
     tokenBody.set("client_id", keycloakConfig.KC_CLIENT_ID);
     // Public client - no client_secret needed
     tokenBody.set("code", code as string);
-    tokenBody.set("redirect_uri", `${req.protocol}://${req.get('host')}/api/auth/callback`);
+    
+    // Get correct Replit URL for redirect_uri
+    const replId = process.env.REPL_ID;
+    const baseUrl = replId 
+      ? `https://${replId}.kirk.prod.repl.run`
+      : `${req.protocol}://${req.get('host')}`; // fallback to localhost for dev
+      
+    tokenBody.set("redirect_uri", `${baseUrl}/api/auth/callback`);
+    
+    console.log("[CALLBACK] Using redirect_uri:", `${baseUrl}/api/auth/callback`);
 
     const tokenResponse = await fetch(TOKEN_URL, {
       method: "POST",
