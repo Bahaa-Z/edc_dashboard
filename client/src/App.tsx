@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppProvider, useApp } from "@/context/AppContext";
 import { queryClient } from "./lib/queryClient";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { AuthHandler } from "@/components/AuthHandler";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import DataspaceSettings from "@/pages/DataspaceSettings";
@@ -67,6 +68,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AppProvider>
+          <AuthHandler />
           <Toaster />
           <Router />
         </AppProvider>

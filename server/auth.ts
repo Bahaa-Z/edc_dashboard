@@ -81,37 +81,7 @@ router.post("/token", async (req: Request, res: Response) => {
       const errorText = await response.text();
       console.log("[TOKEN] Keycloak authentication failed:", response.status, errorText);
       
-      // Fallback für Authentifizierung (immer wenn Keycloak fehlschlägt)
-      if (errorText.includes("Invalid user credentials") || errorText.includes("invalid_grant")) {
-        console.log("[TOKEN] Creating fallback token for user:", username);
-        
-        const fallbackToken = jwt.sign(
-          {
-            sub: `user-${Date.now()}`,
-            preferred_username: username,
-            email: username,
-            iss: ISSUER_URL,
-            aud: keycloakConfig.KC_CLIENT_ID,
-            exp: Math.floor(Date.now() / 1000) + (8 * 60 * 60),
-            iat: Math.floor(Date.now() / 1000),
-          },
-          "dummy-secret-for-fallback",
-          { algorithm: 'HS256' }
-        );
-
-        console.log("[TOKEN] SUCCESS! Fallback authentication for:", username);
-        
-        return res.json({
-          access_token: fallbackToken,
-          token_type: "Bearer",
-          expires_in: 8 * 60 * 60,
-          user: {
-            id: `user-${Date.now()}`,
-            username: username,
-            email: username
-          }
-        });
-      }
+      // Keine hardcoded Fallbacks - nur echte Keycloak-Authentifizierung
       
       return res.status(401).json({ 
         message: "Invalid username or password",
@@ -149,11 +119,30 @@ router.post("/token", async (req: Request, res: Response) => {
   }
 });
 
-// Legacy login endpoint (redirects to Authorization Code Flow)
+// Login endpoint - gibt Authorization URL zurück
 router.post("/login", (req: Request, res: Response) => {
-  res.json({ 
-    message: "Use Authorization Code Flow like SDE",
-    redirectUrl: "/api/auth/authorize"
+  const { username } = req.body;
+  
+  if (!username) {
+    return res.status(400).json({ message: "Username required" });
+  }
+  
+  // Für Keycloak-Users: Authorization Code Flow
+  const state = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  const authUrl = `${KEYCLOAK_BASE}/protocol/openid-connect/auth?` +
+    `client_id=${keycloakConfig.KC_CLIENT_ID}&` +
+    `response_type=code&` +
+    `scope=openid profile email&` +
+    `redirect_uri=${encodeURIComponent(`${baseUrl}/api/auth/callback`)}&` +
+    `state=${state}&` +
+    `login_hint=${encodeURIComponent(username)}`;
+    
+  console.log("[LOGIN] Providing Keycloak auth URL for user:", username);
+  
+  res.json({
+    authUrl: authUrl,
+    message: "Redirect to Keycloak for authentication"
   });
 });
 
@@ -167,21 +156,7 @@ export function validateJWT(req: Request, res: Response, next: any) {
 
   const token = authHeader.substring(7); // Remove 'Bearer '
 
-  // Validate fallback tokens
-  try {
-    const decoded = jwt.verify(token, "dummy-secret-for-fallback", { algorithms: ['HS256'] }) as any;
-    if (decoded.aud === keycloakConfig.KC_CLIENT_ID) {
-      (req as any).user = {
-        id: decoded.sub,
-        username: decoded.preferred_username,
-        email: decoded.email
-      };
-      console.log("[JWT] Fallback token validated for user:", decoded.preferred_username);
-      return next();
-    }
-  } catch (err) {
-    // Not a fallback token, try real Keycloak validation
-  }
+  // Nur echte Keycloak JWT Token validieren
 
   // Validate real Keycloak JWT token
   jwt.verify(token, getKey, {
@@ -219,12 +194,13 @@ router.post("/logout", (req: Request, res: Response) => {
 
 // OAuth2 Authorization Code Flow (for Keycloak users)
 router.get("/authorize", (req: Request, res: Response) => {
-  const state = require('crypto').randomBytes(16).toString('hex');
+  const state = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
   const authUrl = `${KEYCLOAK_BASE}/protocol/openid-connect/auth?` +
     `client_id=${keycloakConfig.KC_CLIENT_ID}&` +
     `response_type=code&` +
     `scope=openid profile email&` +
-    `redirect_uri=${encodeURIComponent('http://localhost:5000/api/auth/callback')}&` +
+    `redirect_uri=${encodeURIComponent(`${baseUrl}/api/auth/callback`)}&` +
     `state=${state}`;
   
   console.log("[OAUTH] Redirecting to Keycloak for authorization:", authUrl);
@@ -247,9 +223,9 @@ router.get("/callback", async (req: Request, res: Response) => {
     const tokenBody = new URLSearchParams();
     tokenBody.set("grant_type", "authorization_code");
     tokenBody.set("client_id", keycloakConfig.KC_CLIENT_ID);
-    tokenBody.set("client_secret", keycloakConfig.KC_CLIENT_SECRET!);
+    // Public client - no client_secret needed
     tokenBody.set("code", code as string);
-    tokenBody.set("redirect_uri", "http://localhost:5000/api/auth/callback");
+    tokenBody.set("redirect_uri", `${req.protocol}://${req.get('host')}/api/auth/callback`);
 
     const tokenResponse = await fetch(TOKEN_URL, {
       method: "POST",
@@ -281,7 +257,7 @@ router.get("/callback", async (req: Request, res: Response) => {
 
     // Store token in session or redirect with token
     // For now, redirect to frontend with user info
-    res.redirect(`/?oauth_success=true&user=${encodeURIComponent(JSON.stringify(user))}&token=${encodeURIComponent(accessToken)}`);
+    res.redirect(`/?token=${encodeURIComponent(accessToken)}&user=${encodeURIComponent(JSON.stringify(user))}`);
 
   } catch (error: any) {
     console.log("[OAUTH] OAuth2 callback error:", error?.message);
