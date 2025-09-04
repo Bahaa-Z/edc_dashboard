@@ -21,7 +21,7 @@ export default function Login() {
 
   const form = useForm<LoginCredentials>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { username: "", password: "", rememberMe: false },
+    defaultValues: { username: "", rememberMe: false },
     mode: "onSubmit",
   });
 
