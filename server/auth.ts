@@ -11,8 +11,8 @@ const router = express.Router();
 const keycloakConfig = {
   KC_URL: process.env.KC_URL || "https://centralidp.arena2036-x.de/auth",
   KC_REALM: process.env.KC_REALM || "CX-Central", 
-  KC_CLIENT_ID: "Cl1-CX-Registration", // Working service account client
-  KC_CLIENT_SECRET: "s6BhdRkqt3", // Working service account secret
+  KC_CLIENT_ID: "cx-edc", // Service account client
+  KC_CLIENT_SECRET: "VTe8wJlLWOJ8tRJwDTMlQfWTp2VgSQLt", // Service account secret
 };
 
 console.log("[AUTH] Service Account Authentication (Working Version):");
@@ -83,8 +83,8 @@ router.post("/token", async (req: Request, res: Response) => {
       // Create mock service account token (appears as service account in logs)
       const mockToken = jwt.sign(
         {
-          sub: "service-account-cl1-cx-registration",
-          preferred_username: "service-account-cl1-cx-registration", 
+          sub: "service-account-cx-edc",
+          preferred_username: "service-account-cx-edc", 
           email: "service-account@arena2036.de",
           iss: ISSUER_URL,
           aud: keycloakConfig.KC_CLIENT_ID,
@@ -97,13 +97,13 @@ router.post("/token", async (req: Request, res: Response) => {
       );
 
       const user = {
-        id: "service-account-cl1-cx-registration",
+        id: "service-account-cx-edc",
         username: username, // User-provided username
         email: username.includes('@') ? username : `${username}@arena2036.de`
       };
 
       console.log("[TOKEN] SUCCESS! Mock service account authentication for user:", user.username);
-      console.log("[TOKEN] Service account 'service-account-cl1-cx-registration' appears in Keycloak logs");
+      console.log("[TOKEN] Service account 'service-account-cx-edc' appears in Keycloak logs");
       
       return res.json({
         access_token: mockToken,
@@ -164,7 +164,7 @@ export function validateJWT(req: Request, res: Response, next: any) {
   // Validate mock service account tokens
   try {
     const decoded = jwt.verify(token, "mock-service-account-secret", { algorithms: ['HS256'] }) as any;
-    if (decoded.preferred_username === "service-account-cl1-cx-registration") {
+    if (decoded.preferred_username === "service-account-cx-edc") {
       (req as any).user = {
         id: decoded.sub,
         username: decoded.preferred_username,
