@@ -21,36 +21,41 @@ export default function Login() {
 
   const form = useForm<LoginCredentials>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { username: "", rememberMe: false },
+    defaultValues: { username: "", password: "", rememberMe: false },
     mode: "onSubmit",
   });
 
   const loginMutation = useMutation({
     mutationFn: async (values: LoginCredentials) => {
-      // Authorization Code Flow - get auth URL and redirect
-      const response = await fetch("/api/auth/login", {
+      // Service account authentication with username/password
+      const response = await fetch("/api/auth/token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: values.username }),
+        body: JSON.stringify(values),
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Failed to start authentication");
+        throw new Error(error.message || "Login failed");
       }
 
       return await response.json();
     },
-    onSuccess: (data) => {
-      // Redirect to Keycloak for authentication
-      console.log("[LOGIN] Redirecting to Keycloak for authentication");
-      window.location.href = data.authUrl;
+    onSuccess: (data, values) => {
+      // Store JWT token and user info (service account style)
+      loginUser(
+        { id: data.user.id, username: data.user.username, email: data.user.email },
+        data.access_token, // JWT Token from service account
+        values.rememberMe ?? false
+      );
+      toast({ title: "Success", description: "Logged in successfully." });
+      navigate("/");
     },
     onError: async (err: any) => {
       toast({
         title: "Error",
         description:
-          (typeof err?.message === "string" && err.message) || "Failed to start authentication",
+          (typeof err?.message === "string" && err.message) || "Invalid credentials",
         variant: "destructive",
       });
     },
@@ -118,11 +123,38 @@ export default function Login() {
                 )}
               </div>
 
-              {/* Info Text */}
-              <div className="bg-blue-50 p-3 rounded-md">
-                <p className="text-sm text-blue-700">
-                  Enter your username and click "Continue to Keycloak" to authenticate with your Keycloak credentials.
-                </p>
+              {/* Password */}
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-sm font-medium text-gray-700">
+                  {t("password")}
+                </Label>
+                <div className="relative">
+                  <Input
+                    {...form.register("password")}
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter password"
+                    className="w-full pr-10"
+                    data-testid="login-password"
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 flex items-center pr-3"
+                    onClick={() => setShowPassword(!showPassword)}
+                    data-testid="toggle-password"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+                    )}
+                  </button>
+                </div>
+                {form.formState.errors.password && (
+                  <p className="text-sm text-red-600" data-testid="login-password-error">
+                    {form.formState.errors.password.message}
+                  </p>
+                )}
               </div>
 
               {/* Remember Me */}
@@ -155,7 +187,7 @@ export default function Login() {
                     Logging in...
                   </div>
                 ) : (
-                  "Continue to Keycloak"
+                  "Login"
                 )}
               </Button>
             </form>

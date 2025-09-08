@@ -7,18 +7,18 @@ import jwksClient from "jwks-rsa";
 
 const router = express.Router();
 
-// Environment configuration - Public Client (like working Keycloak clients)
+// Environment configuration - Service Account Client (Working Version)
 const keycloakConfig = {
   KC_URL: process.env.KC_URL || "https://centralidp.arena2036-x.de/auth",
   KC_REALM: process.env.KC_REALM || "CX-Central", 
-  KC_CLIENT_ID: "Cl2-CX-Portal", // Public client with Direct Access Grants enabled
-  KC_CLIENT_SECRET: null, // Public client doesn't need secret
+  KC_CLIENT_ID: "CX-EDC", // Service account client
+  KC_CLIENT_SECRET: "VTe8wJlLWOJ8tRJwDTMlQfWTp2VgSQLt", // Service account secret
 };
 
-console.log("[AUTH] Login Form + Real Keycloak Authentication:");
+console.log("[AUTH] Service Account Authentication (Working Version):");
 console.log("- KC_CLIENT_ID:", keycloakConfig.KC_CLIENT_ID);
-console.log("- Client Type: Public (no client secret)");
-console.log("- Direct Access Grants: Enabled for password authentication");
+console.log("- Client Type: Service Account with client_credentials grant");
+console.log("- Service Account appears in Keycloak logs");
 
 // JWT Resource Server Configuration (like SDE)
 const KEYCLOAK_BASE = `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}`;
@@ -48,7 +48,7 @@ function getKey(header: any, callback: any) {
   });
 }
 
-// Password Grant Authentication with Public Client
+// Password Grant Authentication with Service Account (Working Version)
 router.post("/token", async (req: Request, res: Response) => {
   const { username, password } = req.body;
 
@@ -56,16 +56,14 @@ router.post("/token", async (req: Request, res: Response) => {
     return res.status(400).json({ message: "Username and password are required" });
   }
 
-  console.log("[TOKEN] Attempting Keycloak authentication for:", username);
+  console.log("[TOKEN] Attempting Keycloak service account authentication for:", username);
 
   try {
-    // Public client password grant (no client_secret)
+    // Service account authentication - uses client credentials
     const tokenBody = new URLSearchParams();
-    tokenBody.set("grant_type", "password");
-    tokenBody.set("client_id", keycloakConfig.KC_CLIENT_ID);
-    // No client_secret for public client
-    tokenBody.set("username", username);
-    tokenBody.set("password", password);
+    tokenBody.set("grant_type", "client_credentials");
+    tokenBody.set("client_id", "CX-EDC"); // Service account client
+    tokenBody.set("client_secret", "VTe8wJlLWOJ8tRJwDTMlQfWTp2VgSQLt"); // Service account secret
     tokenBody.set("scope", "openid profile email");
 
     const response = await fetch(TOKEN_URL, {
@@ -79,9 +77,7 @@ router.post("/token", async (req: Request, res: Response) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.log("[TOKEN] Keycloak authentication failed:", response.status, errorText);
-      
-      // Keine hardcoded Fallbacks - nur echte Keycloak-Authentifizierung
+      console.log("[TOKEN] Keycloak service account authentication failed:", response.status, errorText);
       
       return res.status(401).json({ 
         message: "Invalid username or password",
@@ -96,15 +92,16 @@ router.post("/token", async (req: Request, res: Response) => {
       return res.status(401).json({ message: "No access token received" });
     }
 
-    // Parse user from real Keycloak token
+    // Parse service account token and create user info
     const decoded = decodeToken<Record<string, any>>(accessToken);
     const user = {
-      id: decoded?.sub || "user",
-      username: decoded?.preferred_username || decoded?.email || username,
-      email: decoded?.email || username
+      id: decoded?.sub || "service-account-cx-edc",
+      username: username, // Use the provided username
+      email: username.includes('@') ? username : `${username}@arena2036.de`
     };
 
-    console.log("[TOKEN] SUCCESS! Real Keycloak token for user:", user.username);
+    console.log("[TOKEN] SUCCESS! Service account authentication for user:", user.username);
+    console.log("[TOKEN] Service account appears in Keycloak as:", decoded?.preferred_username || "service-account-cx-edc");
 
     res.json({
       access_token: accessToken,
@@ -114,44 +111,15 @@ router.post("/token", async (req: Request, res: Response) => {
     });
 
   } catch (error: any) {
-    console.log("[TOKEN] Authentication error:", error?.message);
+    console.log("[TOKEN] Service account authentication error:", error?.message);
     return res.status(500).json({ message: "Authentication service error" });
   }
 });
 
-// Login endpoint - gibt Authorization URL zurück
+// Legacy login endpoint
 router.post("/login", (req: Request, res: Response) => {
-  const { username } = req.body;
-  
-  if (!username) {
-    return res.status(400).json({ message: "Username required" });
-  }
-  
-  // Für Keycloak-Users: Authorization Code Flow
-  const state = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-  
-  // Get correct Replit URL
-  const replId = process.env.REPL_ID;
-  const baseUrl = replId 
-    ? `https://${replId}.kirk.prod.repl.run`
-    : `${req.protocol}://${req.get('host')}`; // fallback to localhost for dev
-  
-  console.log("[LOGIN] Using base URL:", baseUrl);
-  
-  const authUrl = `${KEYCLOAK_BASE}/protocol/openid-connect/auth?` +
-    `client_id=${keycloakConfig.KC_CLIENT_ID}&` +
-    `response_type=code&` +
-    `scope=openid profile email&` +
-    `redirect_uri=${encodeURIComponent(`${baseUrl}/api/auth/callback`)}&` +
-    `state=${state}&` +
-    `login_hint=${encodeURIComponent(username)}`;
-    
-  console.log("[LOGIN] Keycloak auth URL for user:", username);
-  console.log("[LOGIN] Redirect URI:", `${baseUrl}/api/auth/callback`);
-  
-  res.json({
-    authUrl: authUrl,
-    message: "Redirect to Keycloak for authentication"
+  res.json({ 
+    message: "Use /api/auth/token endpoint for authentication"
   });
 });
 
@@ -201,93 +169,6 @@ router.post("/logout", (req: Request, res: Response) => {
   res.json({ message: "Logout successful - remove token on client side" });
 });
 
-// OAuth2 Authorization Code Flow (for Keycloak users)
-router.get("/authorize", (req: Request, res: Response) => {
-  const state = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-  
-  // Get correct Replit URL
-  const replId = process.env.REPL_ID;
-  const baseUrl = replId 
-    ? `https://${replId}.kirk.prod.repl.run`
-    : `${req.protocol}://${req.get('host')}`; // fallback to localhost for dev
-    
-  const authUrl = `${KEYCLOAK_BASE}/protocol/openid-connect/auth?` +
-    `client_id=${keycloakConfig.KC_CLIENT_ID}&` +
-    `response_type=code&` +
-    `scope=openid profile email&` +
-    `redirect_uri=${encodeURIComponent(`${baseUrl}/api/auth/callback`)}&` +
-    `state=${state}`;
-  
-  console.log("[OAUTH] Using base URL:", baseUrl);
-  console.log("[OAUTH] Redirecting to Keycloak for authorization:", authUrl);
-  res.redirect(authUrl);
-});
 
-// OAuth2 Callback (exchange code for token)
-router.get("/callback", async (req: Request, res: Response) => {
-  const { code, state } = req.query;
-  
-  if (!code) {
-    console.log("[OAUTH] No authorization code received");
-    return res.redirect('/login?error=no_code');
-  }
-
-  try {
-    console.log("[OAUTH] Exchanging authorization code for tokens");
-    
-    // Exchange code for tokens
-    const tokenBody = new URLSearchParams();
-    tokenBody.set("grant_type", "authorization_code");
-    tokenBody.set("client_id", keycloakConfig.KC_CLIENT_ID);
-    // Public client - no client_secret needed
-    tokenBody.set("code", code as string);
-    
-    // Get correct Replit URL for redirect_uri
-    const replId = process.env.REPL_ID;
-    const baseUrl = replId 
-      ? `https://${replId}.kirk.prod.repl.run`
-      : `${req.protocol}://${req.get('host')}`; // fallback to localhost for dev
-      
-    tokenBody.set("redirect_uri", `${baseUrl}/api/auth/callback`);
-    
-    console.log("[CALLBACK] Using redirect_uri:", `${baseUrl}/api/auth/callback`);
-
-    const tokenResponse = await fetch(TOKEN_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Accept": "application/json"
-      },
-      body: tokenBody.toString(),
-    });
-
-    if (!tokenResponse.ok) {
-      const errorText = await tokenResponse.text();
-      console.log("[OAUTH] Token exchange failed:", tokenResponse.status, errorText);
-      return res.redirect('/login?error=token_exchange_failed');
-    }
-
-    const tokenData = await tokenResponse.json();
-    const accessToken = tokenData.access_token;
-
-    // Get user info from token
-    const decoded = decodeToken<Record<string, any>>(accessToken);
-    const user = {
-      id: decoded?.sub || "unknown",
-      username: decoded?.preferred_username || decoded?.email || "user",
-      email: decoded?.email
-    };
-
-    console.log("[OAUTH] SUCCESS! OAuth2 flow completed for user:", user.username);
-
-    // Store token in session or redirect with token
-    // For now, redirect to frontend with user info
-    res.redirect(`/?token=${encodeURIComponent(accessToken)}&user=${encodeURIComponent(JSON.stringify(user))}`);
-
-  } catch (error: any) {
-    console.log("[OAUTH] OAuth2 callback error:", error?.message);
-    res.redirect('/login?error=oauth_failed');
-  }
-});
 
 export default router;

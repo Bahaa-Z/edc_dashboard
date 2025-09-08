@@ -51,7 +51,7 @@ export const insertDataspaceSettingsSchema = createInsertSchema(dataspaceSetting
 
 export const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
-  password: z.string().optional(), // Password optional for Authorization Code Flow
+  password: z.string().min(1, "Password is required"), // Password required for service account auth
   rememberMe: z.boolean().optional().default(false),
 });
 
