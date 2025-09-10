@@ -1,6 +1,6 @@
-// server/auth.ts - Authorization Code Flow mit openid-client
+// server/auth.ts - Authorization Code Flow mit openid-client v6+
 import express, { type Request, type Response } from "express";
-import { Issuer, Client } from "openid-client";
+import * as openidClient from "openid-client";
 
 const router = express.Router();
 
@@ -13,7 +13,7 @@ const keycloakConfig = {
   REDIRECT_URI: process.env.REDIRECT_URI || "http://localhost:5000/api/auth/callback"
 };
 
-console.log("[AUTH] Authorization Code Flow Keycloak Setup:");
+console.log("[AUTH] Authorization Code Flow Keycloak Setup (openid-client v6):");
 console.log("- KC_CLIENT_ID:", keycloakConfig.KC_CLIENT_ID);
 console.log("- Redirect URI:", keycloakConfig.REDIRECT_URI);
 console.log("- Real Keycloak authentication with user activity in logs");
@@ -23,48 +23,41 @@ const DISCOVERY_URL = `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM
 
 console.log("[AUTH] Keycloak Discovery URL:", DISCOVERY_URL);
 
-// Keycloak Client Setup
-let client: Client;
+// Keycloak Configuration (discovered)
+let authorizationServer: any;
 
 async function initKeycloak() {
   try {
-    console.log("[AUTH] Initializing Keycloak client...");
+    console.log("[AUTH] Discovering Keycloak configuration...");
     
-    // Discover Keycloak issuer
-    let keycloakIssuer;
+    // Discover Keycloak authorization server (v6+ API)
     try {
-      keycloakIssuer = await Issuer.discover(DISCOVERY_URL);
+      authorizationServer = await openidClient.discovery(new URL(DISCOVERY_URL));
     } catch (error: any) {
       console.warn("[AUTH] Discovery failed, trying legacy URL:", error.message);
       // Try legacy discovery URL (older Keycloak versions)
       const legacyUrl = `${keycloakConfig.KC_URL}/auth/realms/${keycloakConfig.KC_REALM}/.well-known/openid-connect/configuration`;
-      keycloakIssuer = await Issuer.discover(legacyUrl);
+      authorizationServer = await openidClient.discovery(new URL(legacyUrl));
     }
     
-    console.log("[AUTH] Discovered Keycloak issuer:", keycloakIssuer.issuer);
+    console.log("[AUTH] Discovered Keycloak issuer:", authorizationServer.issuer);
+    console.log("[AUTH] Authorization endpoint:", authorizationServer.authorization_endpoint);
+    console.log("[AUTH] Token endpoint:", authorizationServer.token_endpoint);
+    console.log("[AUTH] Keycloak configuration loaded successfully");
     
-    // Create Keycloak client
-    client = new keycloakIssuer.Client({
-      client_id: keycloakConfig.KC_CLIENT_ID,
-      client_secret: keycloakConfig.KC_CLIENT_SECRET,
-      redirect_uris: [keycloakConfig.REDIRECT_URI],
-      response_types: ['code'],
-    });
-    
-    console.log("[AUTH] Keycloak client initialized successfully");
-    return client;
+    return authorizationServer;
   } catch (error: any) {
-    console.error("[AUTH] Keycloak initialization failed:", error.message);
+    console.error("[AUTH] Keycloak discovery failed:", error.message);
     throw error;
   }
 }
 
-// Initialize client
-initKeycloak().then(c => {
-  client = c;
+// Initialize configuration
+initKeycloak().then(config => {
+  authorizationServer = config;
   console.log("[AUTH] Client ready for authentication");
 }).catch(err => {
-  console.error("[AUTH] Failed to initialize client:", err.message);
+  console.error("[AUTH] Failed to initialize Keycloak:", err.message);
 });
 
 // Authorization Code Flow Routen
@@ -250,4 +243,3 @@ router.post("/logout", (req: Request, res: Response) => {
   res.redirect("/api/auth/logout");
 });
 export default router;
-export { requireAuthentication };
