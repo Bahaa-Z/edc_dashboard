@@ -1,179 +1,253 @@
-// server/auth.ts - SDE Style JWT Resource Server (Authorization Code Flow)
+// server/auth.ts - Authorization Code Flow mit openid-client
 import express, { type Request, type Response } from "express";
-import { z } from "zod";
-import { decodeToken } from "./token";
-import jwt from "jsonwebtoken";
-import jwksClient from "jwks-rsa";
+import { Issuer, Client } from "openid-client";
 
 const router = express.Router();
 
-// Environment configuration - Service Account Client (Working Version)
+// Keycloak Configuration für EDC Management Console
 const keycloakConfig = {
   KC_URL: process.env.KC_URL || "https://centralidp.arena2036-x.de/auth",
   KC_REALM: process.env.KC_REALM || "CX-Central", 
-  KC_CLIENT_ID: "cx-edc", // Service account client
-  KC_CLIENT_SECRET: "VTe8wJlLWOJ8tRJwDTMlQfWTp2VgSQLt", // Service account secret
+  KC_CLIENT_ID: "cx-edc",
+  KC_CLIENT_SECRET: "VTe8wJlLWOJ8tRJwDTMlQfWTp2VgSQLt",
+  REDIRECT_URI: process.env.REDIRECT_URI || "http://localhost:5000/api/auth/callback"
 };
 
-console.log("[AUTH] REAL Keycloak Password Grant Flow:");
+console.log("[AUTH] Authorization Code Flow Keycloak Setup:");
 console.log("- KC_CLIENT_ID:", keycloakConfig.KC_CLIENT_ID);
-console.log("- Grant Type: password (Resource Owner Password Credentials)");
-console.log("- NO MOCK TOKENS - Only real Keycloak authentication");
-console.log("- User activity will appear in Keycloak logs");
+console.log("- Redirect URI:", keycloakConfig.REDIRECT_URI);
+console.log("- Real Keycloak authentication with user activity in logs");
 
-// JWT Resource Server Configuration (like SDE)
-const KEYCLOAK_BASE = `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}`;
-const TOKEN_URL = `${KEYCLOAK_BASE}/protocol/openid-connect/token`;
-const JWKS_URL = `${KEYCLOAK_BASE}/protocol/openid-connect/certs`;
-const ISSUER_URL = KEYCLOAK_BASE;
+// Keycloak Discovery URL
+const DISCOVERY_URL = `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}/.well-known/openid-connect/configuration`;
 
-console.log("[AUTH] Keycloak JWT Configuration:");
-console.log("- Issuer URL:", ISSUER_URL);
-console.log("- JWKS URL:", JWKS_URL);
+console.log("[AUTH] Keycloak Discovery URL:", DISCOVERY_URL);
 
-// JWT validation setup (like SDE backend)
-const jwksClientInstance = jwksClient({
-  jwksUri: JWKS_URL,
-  requestHeaders: {},
-  timeout: 30000,
-});
+// Keycloak Client Setup
+let client: Client;
 
-function getKey(header: any, callback: any) {
-  jwksClientInstance.getSigningKey(header.kid, (err, key) => {
-    if (err) {
-      console.log("[JWT] Error getting signing key:", err.message);
-      return callback(err);
-    }
-    const signingKey = key?.getPublicKey();
-    callback(null, signingKey);
-  });
-}
-
-// Password Grant Authentication with Service Account (Working Version)
-router.post("/token", async (req: Request, res: Response) => {
-  const { username, password } = req.body;
-
-  if (!username || !password) {
-    return res.status(400).json({ message: "Username and password are required" });
-  }
-
-  console.log("[TOKEN] Attempting Keycloak user authentication for:", username);
-
+async function initKeycloak() {
   try {
-    // Real user authentication - uses password grant
-    const tokenBody = new URLSearchParams();
-    tokenBody.set("grant_type", "password");
-    tokenBody.set("client_id", keycloakConfig.KC_CLIENT_ID);
-    tokenBody.set("client_secret", keycloakConfig.KC_CLIENT_SECRET);
-    tokenBody.set("username", username);
-    tokenBody.set("password", password);
-    tokenBody.set("scope", "openid profile email");
-
-    const response = await fetch(TOKEN_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Accept": "application/json"
-      },
-      body: tokenBody.toString(),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.log("[TOKEN] Keycloak password grant failed:", response.status, errorText);
-      
-      // NO FALLBACK - Only real Keycloak authentication
-      return res.status(401).json({ 
-        message: "Invalid username or password",
-        error: `Keycloak authentication failed: ${errorText}`,
-        details: "Check Keycloak client configuration for password grant flow"
-      });
+    console.log("[AUTH] Initializing Keycloak client...");
+    
+    // Discover Keycloak issuer
+    let keycloakIssuer;
+    try {
+      keycloakIssuer = await Issuer.discover(DISCOVERY_URL);
+    } catch (error: any) {
+      console.warn("[AUTH] Discovery failed, trying legacy URL:", error.message);
+      // Try legacy discovery URL (older Keycloak versions)
+      const legacyUrl = `${keycloakConfig.KC_URL}/auth/realms/${keycloakConfig.KC_REALM}/.well-known/openid-connect/configuration`;
+      keycloakIssuer = await Issuer.discover(legacyUrl);
     }
-
-    const tokenData = await response.json();
-    const accessToken = tokenData.access_token;
-
-    if (!accessToken) {
-      return res.status(401).json({ message: "No access token received" });
-    }
-
-    // Parse service account token and create user info
-    const decoded = decodeToken<Record<string, any>>(accessToken);
-    const user = {
-      id: decoded?.sub || "service-account-cx-edc",
-      username: username, // Use the provided username
-      email: username.includes('@') ? username : `${username}@arena2036.de`
-    };
-
-    console.log("[TOKEN] SUCCESS! Service account authentication for user:", user.username);
-    console.log("[TOKEN] Service account appears in Keycloak as:", decoded?.preferred_username || "service-account-cx-edc");
-
-    res.json({
-      access_token: accessToken,
-      token_type: tokenData.token_type || "Bearer",
-      expires_in: tokenData.expires_in || 3600,
-      user: user
+    
+    console.log("[AUTH] Discovered Keycloak issuer:", keycloakIssuer.issuer);
+    
+    // Create Keycloak client
+    client = new keycloakIssuer.Client({
+      client_id: keycloakConfig.KC_CLIENT_ID,
+      client_secret: keycloakConfig.KC_CLIENT_SECRET,
+      redirect_uris: [keycloakConfig.REDIRECT_URI],
+      response_types: ['code'],
     });
-
+    
+    console.log("[AUTH] Keycloak client initialized successfully");
+    return client;
   } catch (error: any) {
-    console.log("[TOKEN] Service account authentication error:", error?.message);
-    return res.status(500).json({ message: "Authentication service error" });
+    console.error("[AUTH] Keycloak initialization failed:", error.message);
+    throw error;
   }
-});
-
-// Legacy login endpoint
-router.post("/login", (req: Request, res: Response) => {
-  res.json({ 
-    message: "Use /api/auth/token endpoint for authentication"
-  });
-});
-
-// Validate JWT middleware (like SDE backend validation)
-export function validateJWT(req: Request, res: Response, next: any) {
-  const authHeader = req.headers.authorization;
-  
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ message: "Authorization header required" });
-  }
-
-  const token = authHeader.substring(7); // Remove 'Bearer '
-
-  // Only validate real Keycloak JWT tokens - NO MOCK TOKENS
-
-  // Validate real Keycloak JWT token
-  jwt.verify(token, getKey, {
-    audience: keycloakConfig.KC_CLIENT_ID,
-    issuer: ISSUER_URL,
-    algorithms: ['RS256']
-  }, (err, decoded: any) => {
-    if (err) {
-      console.log("[JWT] Real token validation failed:", err.message);
-      return res.status(401).json({ message: "Invalid or expired token" });
-    }
-
-    // Extract user info from JWT
-    (req as any).user = {
-      id: decoded.sub,
-      username: decoded.preferred_username || decoded.email,
-      email: decoded.email
-    };
-
-    console.log("[JWT] Real token validated for user:", (req as any).user.username);
-    next();
-  });
 }
 
-// Get current user info from JWT
-router.get("/me", validateJWT, (req: Request, res: Response) => {
+// Initialize client
+initKeycloak().then(c => {
+  client = c;
+  console.log("[AUTH] Client ready for authentication");
+}).catch(err => {
+  console.error("[AUTH] Failed to initialize client:", err.message);
+});
+
+// Authorization Code Flow Routen
+
+// 1. Login Route - Redirect zu Keycloak
+router.get("/login", (req: Request, res: Response) => {
+  if (!client) {
+    return res.status(500).json({ 
+      message: "Keycloak client not initialized",
+      error: "Server configuration error" 
+    });
+  }
+  
+  try {
+    console.log("[LOGIN] Redirecting user to Keycloak...");
+    
+    const authUrl = client.authorizationUrl({
+      scope: 'openid profile email',
+      response_type: 'code',
+    });
+    
+    console.log("[LOGIN] Authorization URL:", authUrl);
+    res.redirect(authUrl);
+  } catch (error: any) {
+    console.error("[LOGIN] Error creating authorization URL:", error.message);
+    res.status(500).json({ 
+      message: "Failed to create login URL",
+      error: error.message 
+    });
+  }
+});
+
+// 2. Callback Route - Handle Keycloak response
+router.get("/callback", async (req: Request, res: Response) => {
+  if (!client) {
+    return res.status(500).json({ 
+      message: "Keycloak client not initialized",
+      error: "Server configuration error" 
+    });
+  }
+  
+  try {
+    console.log("[CALLBACK] Processing Keycloak callback...");
+    
+    const params = client.callbackParams(req);
+    console.log("[CALLBACK] Received params:", Object.keys(params));
+    
+    // Exchange code for tokens
+    const tokenSet = await client.callback(keycloakConfig.REDIRECT_URI, params);
+    console.log("[CALLBACK] Token exchange successful");
+    
+    // Get user info
+    const userInfo = await client.userinfo(tokenSet.access_token!);
+    console.log("[CALLBACK] User info retrieved:", userInfo.preferred_username || userInfo.email);
+    
+    // Store user in session
+    (req.session as any).user = {
+      id: userInfo.sub,
+      username: userInfo.preferred_username || userInfo.email,
+      email: userInfo.email,
+      name: userInfo.name,
+      tokenSet: {
+        access_token: tokenSet.access_token,
+        refresh_token: tokenSet.refresh_token,
+        expires_at: tokenSet.expires_at
+      }
+    };
+    
+    console.log("[CALLBACK] User session created for:", userInfo.preferred_username || userInfo.email);
+    
+    // Redirect to dashboard
+    res.redirect('/');
+  } catch (error: any) {
+    console.error("[CALLBACK] Authentication failed:", error.message);
+    res.status(500).json({ 
+      message: `Authentication failed: ${error.message}`,
+      error: "Callback processing error"
+    });
+  }
+});
+
+// Legacy token endpoint (for backwards compatibility)
+router.post("/token", (req: Request, res: Response) => {
+  res.status(410).json({ 
+    message: "Password grant flow disabled. Use Authorization Code Flow via /api/auth/login",
+    redirect: "/api/auth/login"
+  });
+});
+
+// Session-based Authentication Middleware
+export function requireAuthentication(req: Request, res: Response, next: any) {
+  const session = req.session as any;
+  
+  if (!session.user) {
+    console.log("[AUTH] No user session found - redirecting to login");
+    return res.status(401).json({ 
+      message: "Authentication required",
+      redirect: "/api/auth/login"
+    });
+  }
+  
+  // Check token expiry
+  const tokenSet = session.user.tokenSet;
+  if (tokenSet && tokenSet.expires_at && tokenSet.expires_at < Date.now() / 1000) {
+    console.log("[AUTH] Token expired for user:", session.user.username);
+    delete session.user;
+    return res.status(401).json({ 
+      message: "Token expired - please login again",
+      redirect: "/api/auth/login"
+    });
+  }
+  
+  // Add user to request
+  (req as any).user = session.user;
+  console.log("[AUTH] Authenticated user:", session.user.username);
+  next();
+}
+
+// Legacy JWT validation (for backwards compatibility)
+export function validateJWT(req: Request, res: Response, next: any) {
+  // Redirect to session-based auth
+  return requireAuthentication(req, res, next);
+}
+
+// 3. User Info Route - Get current user
+router.get("/me", requireAuthentication, (req: Request, res: Response) => {
   const user = (req as any).user;
-  res.json({ user });
+  console.log("[ME] Returning user info for:", user.username);
+  
+  res.json({ 
+    user: {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      name: user.name
+    }
+  });
 });
 
-// Logout endpoint (client-side token removal)
+// 4. Logout Route - Destroy session and redirect to Keycloak logout
+router.get("/logout", async (req: Request, res: Response) => {
+  if (!client) {
+    return res.status(500).json({ 
+      message: "Keycloak client not initialized",
+      error: "Server configuration error" 
+    });
+  }
+  
+  try {
+    const session = req.session as any;
+    const username = session.user?.username;
+    
+    console.log("[LOGOUT] Logging out user:", username || "unknown");
+    
+    // Create Keycloak logout URL
+    const logoutUrl = client.endSessionUrl({
+      post_logout_redirect_uri: process.env.POST_LOGOUT_REDIRECT_URI || "http://localhost:5000"
+    });
+    
+    // Destroy session
+    req.session.destroy((err) => {
+      if (err) {
+        console.error("[LOGOUT] Session destruction error:", err.message);
+      } else {
+        console.log("[LOGOUT] Session destroyed for user:", username || "unknown");
+      }
+    });
+    
+    console.log("[LOGOUT] Redirecting to Keycloak logout:", logoutUrl);
+    res.redirect(logoutUrl);
+  } catch (error: any) {
+    console.error("[LOGOUT] Logout error:", error.message);
+    res.status(500).json({ 
+      message: "Logout failed",
+      error: error.message 
+    });
+  }
+});
+
+// Legacy logout endpoint (POST) 
 router.post("/logout", (req: Request, res: Response) => {
-  res.json({ message: "Logout successful - remove token on client side" });
+  console.log("[LOGOUT] Legacy POST logout - redirecting to GET /logout");
+  res.redirect("/api/auth/logout");
 });
-
-
-
 export default router;
+export { requireAuthentication };
