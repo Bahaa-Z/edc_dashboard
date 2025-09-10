@@ -1,7 +1,6 @@
-// client/src/context/AppContext.tsx
+// client/src/context/AppContext.tsx - EINFACH Session-based
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { translations, type Language, type TranslationKey } from "@/lib/translations";
-import { keycloak, initKeycloak, login, logout as keycloakLogout, getUserProfile, setupTokenRefresh } from "@/auth/keycloak";
 
 export interface User {
   id?: string;
@@ -10,14 +9,11 @@ export interface User {
 }
 
 interface AppContextType {
-  // Auth - Keycloak-based
+  // Auth - Simple session-based
   user: User | null;
   isAuthenticated: boolean;
-  isInitialized: boolean;
-  login: () => Promise<void>;
-  logout: () => Promise<void>;
-  authToken: string | null;
-  refreshToken: () => Promise<boolean>;
+  checkAuth: () => Promise<void>;
+  logout: () => void;
 
   // i18n
   language: Language;
@@ -40,82 +36,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem(LANG_KEY, language);
   }, [language]);
 
-  // Keycloak state
-  const [isInitialized, setIsInitialized] = useState(false);
+  // Simple user state
   const [user, setUser] = useState<User | null>(null);
-  const [authToken, setAuthToken] = useState<string | null>(null);
 
-  // Initialize Keycloak on component mount
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        console.log('[AUTH] Initializing Keycloak...');
-        const authenticated = await initKeycloak();
-        
-        if (authenticated && keycloak.tokenParsed) {
-          // Extract user info from token
-          const userInfo = getUserProfile();
-          const userData: User = {
-            id: keycloak.subject || '',
-            username: userInfo.preferred_username || userInfo.email || 'Unknown',
-            email: userInfo.email
-          };
-          
-          setUser(userData);
-          setAuthToken(keycloak.token || null);
-          console.log('[AUTH] User authenticated:', userData);
-          
-          // Setup token refresh
-          setupTokenRefresh();
-        } else {
-          console.log('[AUTH] User not authenticated');
-        }
-        
-        setIsInitialized(true);
-      } catch (error) {
-        console.error('[AUTH] Keycloak initialization failed:', error);
-        setIsInitialized(true);
+  // Check authentication status with backend
+  const checkAuth = async () => {
+    try {
+      const response = await fetch("/api/auth/me", {
+        credentials: "include" // Include session cookies
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data.user);
+        console.log("[AUTH] User authenticated:", data.user.username);
+      } else {
+        setUser(null);
+        console.log("[AUTH] User not authenticated");
       }
-    };
+    } catch (error) {
+      console.error("[AUTH] Check auth failed:", error);
+      setUser(null);
+    }
+  };
 
-    initAuth();
+  // Simple logout - redirect to backend logout
+  const logout = () => {
+    console.log("[LOGOUT] Logging out...");
+    setUser(null);
+    window.location.href = "/api/auth/logout";
+  };
+
+  // Check auth on mount
+  useEffect(() => {
+    checkAuth();
   }, []);
 
-  // Login function
-  const handleLogin = async (): Promise<void> => {
-    try {
-      await login();
-    } catch (error) {
-      console.error('[AUTH] Login failed:', error);
-    }
-  };
-
-  // Logout function
-  const handleLogout = async (): Promise<void> => {
-    try {
-      setUser(null);
-      setAuthToken(null);
-      await keycloakLogout();
-    } catch (error) {
-      console.error('[AUTH] Logout failed:', error);
-    }
-  };
-
-  // Refresh token function
-  const refreshToken = async (): Promise<boolean> => {
-    try {
-      const success = await keycloak.updateToken(30);
-      if (success && keycloak.token) {
-        setAuthToken(keycloak.token);
-      }
-      return success;
-    } catch (error) {
-      console.error('[AUTH] Token refresh failed:', error);
-      return false;
-    }
-  };
-
-  const isAuthenticated = !!user && !!keycloak.authenticated;
+  const isAuthenticated = !!user;
 
   const t = (key: TranslationKey): string =>
     translations[language][key] || translations.en[key] || key;
@@ -124,16 +81,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     () => ({
       user,
       isAuthenticated,
-      isInitialized,
-      login: handleLogin,
-      logout: handleLogout,
-      authToken,
-      refreshToken,
+      checkAuth,
+      logout,
       language,
       setLanguage,
       t,
     }),
-    [user, isAuthenticated, isInitialized, authToken, language]
+    [user, isAuthenticated, language]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
