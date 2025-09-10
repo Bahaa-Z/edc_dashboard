@@ -357,14 +357,65 @@ export function requireAuthentication(req: Request, res: Response, next: any) {
   next();
 }
 
-// Legacy JWT validation (for backwards compatibility)
-export function validateJWT(req: Request, res: Response, next: any) {
-  // Redirect to session-based auth
-  return requireAuthentication(req, res, next);
+// JWT Bearer Token validation (for Keycloak frontend integration)
+export async function validateJWT(req: Request, res: Response, next: any) {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log("[JWT] No Bearer token provided");
+    return res.status(401).json({ 
+      message: "Bearer token required",
+      error: "Missing Authorization header"
+    });
+  }
+  
+  const token = authHeader.substring(7);
+  
+  try {
+    // Validate token with Keycloak userinfo endpoint
+    if (!authorizationServer) {
+      return res.status(500).json({ message: "Keycloak not configured" });
+    }
+    
+    const userInfoResponse = await fetch(authorizationServer.userinfo_endpoint, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Accept": "application/json"
+      }
+    });
+    
+    if (!userInfoResponse.ok) {
+      console.log("[JWT] Token validation failed:", userInfoResponse.status);
+      return res.status(401).json({ 
+        message: "Invalid token",
+        error: "Token validation failed"
+      });
+    }
+    
+    const userInfo = await userInfoResponse.json();
+    
+    // Add user to request
+    (req as any).user = {
+      id: userInfo.sub,
+      username: userInfo.preferred_username || userInfo.email,
+      email: userInfo.email,
+      name: userInfo.name
+    };
+    
+    console.log("[JWT] Token validated for user:", userInfo.preferred_username || userInfo.email);
+    next();
+  } catch (error: any) {
+    console.error("[JWT] Token validation error:", error.message);
+    return res.status(401).json({ 
+      message: "Token validation failed",
+      error: error.message
+    });
+  }
 }
 
-// 3. User Info Route - Get current user
-router.get("/me", requireAuthentication, (req: Request, res: Response) => {
+// 3. User Info Route - Get current user (Bearer token based)
+router.get("/me", validateJWT, (req: Request, res: Response) => {
   const user = (req as any).user;
   console.log("[ME] Returning user info for:", user.username);
   

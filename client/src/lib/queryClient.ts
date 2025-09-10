@@ -8,24 +8,23 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
-/** API-Request Helper (JWT Token basiert - SDE Style) */
+/** API-Request Helper (Keycloak JWT Token based) */
 export async function apiRequest(method: string, url: string, data?: unknown) {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "Accept": "application/json",
   };
 
-  // Get JWT token from storage (SDE approach)
-  const token = localStorage.getItem("app_auth_token") || sessionStorage.getItem("app_auth_token");
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+  // Get Keycloak token - import dynamically to avoid circular dependencies
+  const { keycloak } = await import("@/auth/keycloak");
+  if (keycloak.token) {
+    headers["Authorization"] = `Bearer ${keycloak.token}`;
   }
 
   const res = await fetch(url, {
     method,
     headers,
     body: data ? JSON.stringify(data) : undefined,
-    // Remove credentials: "include" - using JWT tokens instead
   });
   await throwIfResNotOk(res);
   return res;
@@ -33,21 +32,20 @@ export async function apiRequest(method: string, url: string, data?: unknown) {
 
 type UnauthorizedBehavior = "returnNull" | "throw";
 
-/** Default QueryFn für React Query (JWT Token basiert) */
+/** Default QueryFn für React Query (Keycloak JWT Token based) */
 export function getQueryFn<T>({ on401 }: { on401: UnauthorizedBehavior }) {
   return async ({ queryKey }: QueryFunctionContext): Promise<T | null> => {
     const url = String(queryKey.join("/"));
     const headers: Record<string, string> = { Accept: "application/json" };
 
-    // Get JWT token for queries
-    const token = localStorage.getItem("app_auth_token") || sessionStorage.getItem("app_auth_token");
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
+    // Get Keycloak token for queries - import dynamically to avoid circular dependencies
+    const { keycloak } = await import("@/auth/keycloak");
+    if (keycloak.token) {
+      headers["Authorization"] = `Bearer ${keycloak.token}`;
     }
 
     const res = await fetch(url, {
       headers,
-      // Remove credentials: "include" - using JWT tokens
     });
 
     if (on401 === "returnNull" && res.status === 401) return null;
