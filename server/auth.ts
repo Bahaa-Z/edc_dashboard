@@ -1,22 +1,24 @@
-// server/auth.ts - Password Grant Flow ohne Redirect
+// server/auth.ts - Authorization Code Grant Flow
 import express, { type Request, type Response } from "express";
 import { Issuer, Client } from "openid-client";
 
 const router = express.Router();
 
-// Keycloak Config
+// Keycloak Config (Ihre bestehenden Einstellungen)
 const keycloakConfig = {
   KC_URL: "https://centralidp.arena2036-x.de/auth",
   KC_REALM: "CX-Central", 
   KC_CLIENT_ID: "CX-EDC",
-  KC_CLIENT_SECRET: "kwe2FC3EXDPUuUEoVhI6igUnRAmzkuwN"
+  KC_CLIENT_SECRET: "kwe2FC3EXDPUuUEoVhI6igUnRAmzkuwN",
+  REDIRECT_URI: "http://localhost:5000/api/auth/callback"
 };
 
-console.log("[AUTH] Keycloak Client ID:", keycloakConfig.KC_CLIENT_ID);
+console.log("[AUTH] Authorization Code Grant Flow");
+console.log("[AUTH] Client ID:", keycloakConfig.KC_CLIENT_ID);
 
 let keycloakClient: Client;
 
-// Initialize Keycloak Client
+// Initialize Keycloak Client für Authorization Code Flow
 async function initKeycloak() {
   try {
     const keycloakIssuer = await Issuer.discover(
@@ -26,9 +28,11 @@ async function initKeycloak() {
     keycloakClient = new keycloakIssuer.Client({
       client_id: keycloakConfig.KC_CLIENT_ID,
       client_secret: keycloakConfig.KC_CLIENT_SECRET,
+      redirect_uris: [keycloakConfig.REDIRECT_URI],
+      response_types: ['code'],
     });
 
-    console.log("[AUTH] ✅ Keycloak Client initialized for Password Grant");
+    console.log("[AUTH] ✅ Keycloak Client initialized for Authorization Code Grant");
     return keycloakClient;
   } catch (error: any) {
     console.error("[AUTH] Keycloak init failed:", error.message);
@@ -39,9 +43,9 @@ async function initKeycloak() {
 // Initialize on startup
 initKeycloak().catch(console.error);
 
-// PASSWORD GRANT LOGIN - ohne Redirect!
+// LOGIN - Authorization Code Grant
 router.post("/login", async (req: Request, res: Response) => {
-  const { username, password, isDemo } = req.body;
+  const { isDemo } = req.body;
 
   // Demo Login für Testing
   if (isDemo === true) {
@@ -65,11 +69,105 @@ router.post("/login", async (req: Request, res: Response) => {
     });
   }
 
-  // Keycloak Password Grant
-  if (!username || !password) {
-    return res.status(400).json({ 
+  // Authorization Code Grant - Redirect to Keycloak
+  if (!keycloakClient) {
+    return res.status(500).json({ 
       success: false,
-      message: "Username and password are required" 
+      message: "Keycloak not initialized" 
+    });
+  }
+
+  try {
+    console.log("[LOGIN] Starting Authorization Code Grant Flow...");
+    
+    // Create authorization URL mit Ihren Scopes
+    const authUrl = keycloakClient.authorizationUrl({
+      scope: 'openid catena profile email', // Ihre gewünschten Scopes
+      state: 'auth-state-' + Date.now()
+    });
+
+    console.log("[LOGIN] Redirect URL created");
+    
+    res.json({
+      success: true,
+      redirect: true,
+      authUrl: authUrl,
+      message: "Redirecting to Keycloak..."
+    });
+
+  } catch (error: any) {
+    console.log("[LOGIN] Authorization Code Flow failed:", error.message);
+    
+    return res.status(500).json({ 
+      success: false,
+      message: "Authorization setup failed",
+      error: error.message
+    });
+  }
+});
+
+// CALLBACK - Handle Authorization Code
+router.get("/callback", async (req: Request, res: Response) => {
+  if (!keycloakClient) {
+    return res.status(500).json({ 
+      success: false,
+      message: "Keycloak not initialized" 
+    });
+  }
+
+  try {
+    console.log("[CALLBACK] Processing authorization code...");
+    
+    const params = keycloakClient.callbackParams(req);
+    const tokenSet = await keycloakClient.callback(
+      keycloakConfig.REDIRECT_URI, 
+      params
+    );
+
+    console.log("[CALLBACK] Token exchange successful");
+    console.log("[CALLBACK] Access token received");
+    console.log("[CALLBACK] Refresh token:", !!tokenSet.refresh_token);
+
+    // Get user info
+    const userInfo = await keycloakClient.userinfo(tokenSet.access_token!);
+    
+    const user = {
+      id: userInfo.sub,
+      username: userInfo.preferred_username || userInfo.email,
+      email: userInfo.email,
+      name: userInfo.name
+    };
+
+    // Store in session mit Refresh Token
+    (req.session as any).user = {
+      ...user,
+      tokenSet: {
+        access_token: tokenSet.access_token,
+        refresh_token: tokenSet.refresh_token,
+        expires_at: tokenSet.expires_at,
+        token_type: tokenSet.token_type
+      }
+    };
+
+    console.log("[CALLBACK] ✅ User logged in:", user.username);
+    console.log("[CALLBACK] ✅ User will appear in Keycloak logs");
+    
+    // Redirect to app
+    res.redirect('/?login=success');
+  } catch (error: any) {
+    console.error("[CALLBACK] Auth failed:", error.message);
+    res.redirect('/?login=error');
+  }
+});
+
+// REFRESH TOKEN
+router.post("/refresh", async (req: Request, res: Response) => {
+  const session = req.session as any;
+  
+  if (!session.user || !session.user.tokenSet?.refresh_token) {
+    return res.status(401).json({ 
+      success: false,
+      message: "No refresh token available" 
     });
   }
 
@@ -81,54 +179,35 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 
   try {
-    console.log("[LOGIN] Attempting Keycloak password grant for:", username);
-
-    // Get token with Password Grant
-    const tokenSet = await keycloakClient.grant({
-      grant_type: 'password',
-      username: username,
-      password: password,
-      scope: 'openid profile email'
-    });
-
-    if (!tokenSet.access_token) {
-      return res.status(401).json({ 
-        success: false,
-        message: "No access token received" 
-      });
-    }
-
-    // Get user info
-    const userInfo = await keycloakClient.userinfo(tokenSet.access_token);
+    console.log("[REFRESH] Refreshing access token...");
     
-    const user = {
-      id: userInfo.sub,
-      username: userInfo.preferred_username || userInfo.email || username,
-      email: userInfo.email,
-      name: userInfo.name
+    const tokenSet = await keycloakClient.refresh(session.user.tokenSet.refresh_token);
+    
+    // Update session
+    session.user.tokenSet = {
+      access_token: tokenSet.access_token,
+      refresh_token: tokenSet.refresh_token || session.user.tokenSet.refresh_token,
+      expires_at: tokenSet.expires_at,
+      token_type: tokenSet.token_type
     };
 
-    // Store in session
-    (req.session as any).user = {
-      ...user,
-      tokenSet: tokenSet
-    };
-
-    console.log("[LOGIN] ✅ Keycloak login successful:", user.username);
+    console.log("[REFRESH] ✅ Token refreshed");
 
     res.json({
       success: true,
-      user: user,
       token: tokenSet.access_token,
-      message: "Login successful"
+      message: "Token refreshed"
     });
 
   } catch (error: any) {
-    console.log("[LOGIN] Keycloak login failed:", error.message);
+    console.error("[REFRESH] Token refresh failed:", error.message);
     
-    return res.status(401).json({ 
+    // Clear session if refresh fails
+    delete session.user;
+    
+    res.status(401).json({ 
       success: false,
-      message: "Invalid username or password",
+      message: "Token refresh failed",
       error: error.message
     });
   }
@@ -157,7 +236,7 @@ router.get("/me", (req: Request, res: Response) => {
 });
 
 // LOGOUT
-router.post("/logout", (req: Request, res: Response) => {
+router.post("/logout", async (req: Request, res: Response) => {
   const session = req.session as any;
   const username = session.user?.username;
   
