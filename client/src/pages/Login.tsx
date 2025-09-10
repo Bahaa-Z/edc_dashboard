@@ -1,14 +1,67 @@
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import { useApp } from "@/context/AppContext";
-import { LogIn } from "lucide-react";
+import { useLocation } from "wouter";
+import { Eye, EyeOff } from "lucide-react";
+import { loginSchema, type LoginCredentials } from "@shared/schema";
 
 export default function Login() {
-  const { t } = useApp();
+  const { t, loginUser } = useApp();
+  const { toast } = useToast();
+  const [, navigate] = useLocation();
+  const [showPassword, setShowPassword] = useState(false);
 
-  const handleKeycloakLogin = () => {
-    // Redirect to Authorization Code Flow
-    window.location.href = "/api/auth/login";
+  const form = useForm<LoginCredentials>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { username: "", password: "", rememberMe: false },
+    mode: "onSubmit",
+  });
+
+  const loginMutation = useMutation({
+    mutationFn: async (values: LoginCredentials) => {
+      // Backend Password Grant Flow with real Keycloak authentication
+      const response = await fetch("/api/auth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Login failed");
+      }
+
+      return await response.json();
+    },
+    onSuccess: (data, values) => {
+      // Store real Keycloak JWT token and user info
+      loginUser(
+        { id: data.user.id, username: data.user.username, email: data.user.email },
+        data.access_token, // Real Keycloak JWT Token
+        values.rememberMe ?? false
+      );
+      toast({ title: "Success", description: "Logged in successfully." });
+      navigate("/");
+    },
+    onError: async (err: any) => {
+      toast({
+        title: "Error",
+        description:
+          (typeof err?.message === "string" && err.message) || "Invalid credentials",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const onSubmit = (values: LoginCredentials) => {
+    loginMutation.mutate(values);
   };
 
   return (
@@ -47,37 +100,96 @@ export default function Login() {
               </p>
             </div>
 
-            {/* Authorization Code Flow Login */}
-            <div className="space-y-6">
-              {/* Info Text */}
-              <div className="text-center space-y-3">
-                <p className="text-gray-600 text-sm">
-                  Authenticate using your ARENA2036 Keycloak account
-                </p>
-                <div className="text-xs text-gray-500 bg-blue-50 p-3 rounded-md">
-                  <p>✅ Secure Authorization Code Flow</p>
-                  <p>✅ Real Keycloak authentication</p>
-                  <p>✅ User activity appears in Keycloak logs</p>
+            {/* Login Form */}
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              {/* Username */}
+              <div className="space-y-2">
+                <Label htmlFor="username" className="text-sm font-medium text-gray-700">
+                  {t("username")}
+                </Label>
+                <Input
+                  {...form.register("username")}
+                  id="username"
+                  type="text"
+                  placeholder="Enter username"
+                  className="w-full"
+                  data-testid="login-username"
+                />
+                {form.formState.errors.username && (
+                  <p className="text-sm text-red-600" data-testid="login-username-error">
+                    {form.formState.errors.username.message}
+                  </p>
+                )}
+              </div>
+
+              {/* Password */}
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-sm font-medium text-gray-700">
+                  {t("password")}
+                </Label>
+                <div className="relative">
+                  <Input
+                    {...form.register("password")}
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter password"
+                    className="w-full pr-10"
+                    data-testid="login-password"
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 flex items-center pr-3"
+                    onClick={() => setShowPassword(!showPassword)}
+                    data-testid="toggle-password"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+                    )}
+                  </button>
                 </div>
+                {form.formState.errors.password && (
+                  <p className="text-sm text-red-600" data-testid="login-password-error">
+                    {form.formState.errors.password.message}
+                  </p>
+                )}
               </div>
 
-              {/* Keycloak Login Button */}
+              {/* Remember Me */}
+              <div className="flex items-center space-x-2">
+                <input
+                  {...form.register("rememberMe")}
+                  id="rememberMe"
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300 text-[#F28C00] focus:ring-[#F28C00]"
+                  data-testid="login-remember-me"
+                />
+                <Label
+                  htmlFor="rememberMe"
+                  className="text-sm font-medium text-gray-700 cursor-pointer"
+                >
+                  Remember me
+                </Label>
+              </div>
+
+              {/* Submit Button */}
               <Button
-                onClick={handleKeycloakLogin}
-                className="w-full bg-[#F28C00] hover:bg-[#d67b00] text-white text-lg py-6 font-semibold"
-                data-testid="keycloak-login"
+                type="submit"
+                disabled={loginMutation.isPending}
+                className="w-full bg-[#F28C00] hover:bg-[#d67b00] text-white"
+                data-testid="login-submit"
               >
-                <LogIn className="w-5 h-5 mr-3" />
-                Login with Keycloak
+                {loginMutation.isPending ? (
+                  <div className="flex items-center justify-center">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    Logging in...
+                  </div>
+                ) : (
+                  "Login"
+                )}
               </Button>
-
-              {/* Additional Info */}
-              <div className="text-center">
-                <p className="text-xs text-gray-500">
-                  You will be redirected to Keycloak for secure authentication
-                </p>
-              </div>
-            </div>
+            </form>
           </CardContent>
         </Card>
       </div>

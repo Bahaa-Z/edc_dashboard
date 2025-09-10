@@ -13,10 +13,11 @@ const keycloakConfig = {
   REDIRECT_URI: process.env.REDIRECT_URI || "http://localhost:5000/api/auth/callback"
 };
 
-console.log("[AUTH] Authorization Code Flow Keycloak Setup (openid-client v6):");
+console.log("[AUTH] Real Keycloak Password Grant Flow Setup:");
 console.log("- KC_CLIENT_ID:", keycloakConfig.KC_CLIENT_ID);
-console.log("- Redirect URI:", keycloakConfig.REDIRECT_URI);
-console.log("- Real Keycloak authentication with user activity in logs");
+console.log("- Frontend: Username/Password form");
+console.log("- Backend: Real Keycloak Password Grant authentication");
+console.log("- User activity will appear in Keycloak logs");
 
 // Keycloak Discovery URLs (try multiple patterns)
 const DISCOVERY_URLS = [
@@ -245,12 +246,99 @@ router.get("/callback", async (req: Request, res: Response) => {
   }
 });
 
-// Legacy token endpoint (for backwards compatibility)
-router.post("/token", (req: Request, res: Response) => {
-  res.status(410).json({ 
-    message: "Password grant flow disabled. Use Authorization Code Flow via /api/auth/login",
-    redirect: "/api/auth/login"
-  });
+// Password Grant Authentication (echte Keycloak-Authentifizierung)
+router.post("/token", async (req: Request, res: Response) => {
+  const { username, password } = req.body;
+
+  if (!username || !password) {
+    return res.status(400).json({ message: "Username and password are required" });
+  }
+
+  console.log("[TOKEN] Attempting real Keycloak password grant for:", username);
+
+  try {
+    // Echter Password Grant Flow mit Keycloak
+    const tokenBody = new URLSearchParams();
+    tokenBody.set("grant_type", "password");
+    tokenBody.set("client_id", keycloakConfig.KC_CLIENT_ID);
+    tokenBody.set("client_secret", keycloakConfig.KC_CLIENT_SECRET);
+    tokenBody.set("username", username);
+    tokenBody.set("password", password);
+    tokenBody.set("scope", "openid profile email");
+
+    const response = await fetch(authorizationServer.token_endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json"
+      },
+      body: tokenBody.toString(),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.log("[TOKEN] Keycloak password grant failed:", response.status, errorText);
+      
+      return res.status(401).json({ 
+        message: "Invalid username or password",
+        error: `Keycloak authentication failed: ${errorText}`,
+        details: "Check username/password and Keycloak client configuration"
+      });
+    }
+
+    const tokenData = await response.json();
+    const accessToken = tokenData.access_token;
+
+    if (!accessToken) {
+      return res.status(401).json({ message: "No access token received from Keycloak" });
+    }
+
+    // Get user info from Keycloak
+    const userInfoResponse = await fetch(authorizationServer.userinfo_endpoint, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Accept": "application/json"
+      }
+    });
+
+    let userInfo;
+    if (userInfoResponse.ok) {
+      userInfo = await userInfoResponse.json();
+      console.log("[TOKEN] User info retrieved from Keycloak:", userInfo.preferred_username || userInfo.email);
+    } else {
+      // Fallback user info if userinfo endpoint fails
+      userInfo = {
+        sub: username.replace('@', '_at_').replace('.', '_'),
+        preferred_username: username,
+        email: username.includes('@') ? username : `${username}@arena2036.de`
+      };
+      console.log("[TOKEN] Using fallback user info");
+    }
+
+    const user = {
+      id: userInfo.sub || userInfo.preferred_username || username,
+      username: userInfo.preferred_username || userInfo.email || username,
+      email: userInfo.email || (username.includes('@') ? username : `${username}@arena2036.de`)
+    };
+
+    console.log("[TOKEN] ✅ SUCCESS! Real Keycloak authentication for:", user.username);
+    console.log("[TOKEN] ✅ User activity will appear in Keycloak logs");
+
+    res.json({
+      access_token: accessToken, // Echter Keycloak JWT Token
+      token_type: tokenData.token_type || "Bearer",
+      expires_in: tokenData.expires_in || 3600,
+      user: user
+    });
+
+  } catch (error: any) {
+    console.log("[TOKEN] Keycloak authentication error:", error?.message);
+    return res.status(500).json({ 
+      message: "Authentication service error",
+      error: error?.message 
+    });
+  }
 });
 
 // Session-based Authentication Middleware
