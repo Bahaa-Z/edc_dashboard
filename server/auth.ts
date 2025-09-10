@@ -4,12 +4,12 @@ import * as openidClient from "openid-client";
 
 const router = express.Router();
 
-// Keycloak Configuration für EDC Management Console
+// Keycloak Configuration für EDC Management Console (KORREKTE WERTE)
 const keycloakConfig = {
   KC_URL: process.env.KC_URL || "https://centralidp.arena2036-x.de/auth",
   KC_REALM: process.env.KC_REALM || "CX-Central", 
-  KC_CLIENT_ID: "cx-edc",
-  KC_CLIENT_SECRET: "VTe8wJlLWOJ8tRJwDTMlQfWTp2VgSQLt",
+  KC_CLIENT_ID: "CX-EDC", // ✅ KORREKT
+  KC_CLIENT_SECRET: "kwe2FC3EXDPUuUEoVhI6igUnRAmzkuwN", // ✅ KORREKT
   REDIRECT_URI: process.env.REDIRECT_URI || "http://localhost:5000/api/auth/callback"
 };
 
@@ -19,14 +19,10 @@ console.log("- Frontend: Username/Password form");
 console.log("- Backend: Real Keycloak Password Grant authentication");
 console.log("- User activity will appear in Keycloak logs");
 
-// Keycloak Discovery URLs (try multiple patterns)
-const DISCOVERY_URLS = [
-  `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}/.well-known/openid-connect/configuration`,
-  `https://centralidp.arena2036-x.de/realms/${keycloakConfig.KC_REALM}/.well-known/openid-connect/configuration`,
-  `${keycloakConfig.KC_URL}/auth/realms/${keycloakConfig.KC_REALM}/.well-known/openid-connect/configuration`
-];
+// Keycloak Discovery URL (KORREKTE URL vom User)
+const DISCOVERY_URL = "https://centralidp.arena2036-x.de/auth/realms/CX-Central/.well-known/openid-configuration";
 
-console.log("[AUTH] Keycloak Discovery URLs:", DISCOVERY_URLS);
+console.log("[AUTH] Keycloak Discovery URL:", DISCOVERY_URL);
 
 // Keycloak Configuration (discovered)
 let authorizationServer: any;
@@ -35,29 +31,20 @@ async function initKeycloak() {
   try {
     console.log("[AUTH] Discovering Keycloak configuration...");
     
-    // Try discovery with multiple URLs
-    let discoveryWorked = false;
-    for (const discoveryUrl of DISCOVERY_URLS) {
-      try {
-        console.log("[AUTH] Trying discovery URL:", discoveryUrl);
-        const response = await fetch(discoveryUrl);
-        if (response.ok) {
-          const config = await fetch(discoveryUrl).then(r => r.json());
-          authorizationServer = config;
-          console.log("[AUTH] Discovery successful with:", discoveryUrl);
-          discoveryWorked = true;
-          break;
-        } else {
-          console.log("[AUTH] Discovery URL failed:", response.status, discoveryUrl);
-        }
-      } catch (error: any) {
-        console.log("[AUTH] Discovery error:", error.message, "for", discoveryUrl);
+    // Use the correct discovery URL provided by the user
+    try {
+      console.log("[AUTH] Using correct discovery URL:", DISCOVERY_URL);
+      const response = await fetch(DISCOVERY_URL);
+      if (response.ok) {
+        authorizationServer = await response.json();
+        console.log("[AUTH] ✅ Discovery successful!");
+        console.log("[AUTH] Password grant supported:", authorizationServer.grant_types_supported.includes('password'));
+      } else {
+        throw new Error(`Discovery failed: ${response.status}`);
       }
-    }
-    
-    // If discovery fails, create manual configuration
-    if (!discoveryWorked) {
-      console.log("[AUTH] All discovery URLs failed - using manual configuration");
+    } catch (error: any) {
+      console.error("[AUTH] Discovery failed:", error.message);
+      // Fallback manual configuration
       authorizationServer = {
         issuer: `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}`,
         authorization_endpoint: `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}/protocol/openid-connect/auth`,
@@ -66,7 +53,7 @@ async function initKeycloak() {
         end_session_endpoint: `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}/protocol/openid-connect/logout`,
         jwks_uri: `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}/protocol/openid-connect/certs`
       };
-      console.log("[AUTH] Manual configuration created");
+      console.log("[AUTH] Using fallback manual configuration");
     }
     
     console.log("[AUTH] Discovered Keycloak issuer:", authorizationServer.issuer);
