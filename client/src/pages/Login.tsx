@@ -143,7 +143,7 @@ export default function Login() {
             {/* Login Info */}
             <div className="text-center mb-6">
               <p className="text-gray-600 text-sm">
-                Scopes: openid catena profile email
+                Scopes: openid profile email
               </p>
             </div>
 

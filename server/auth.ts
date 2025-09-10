@@ -80,9 +80,9 @@ router.post("/login", async (req: Request, res: Response) => {
   try {
     console.log("[LOGIN] Starting Authorization Code Grant Flow...");
     
-    // Create authorization URL mit Ihren Scopes
+    // Create authorization URL mit Standard Scopes
     const authUrl = keycloakClient.authorizationUrl({
-      scope: 'openid catena profile email', // Ihre gewünschten Scopes
+      scope: 'openid profile email', // Standard OpenID Connect Scopes
       state: 'auth-state-' + Date.now()
     });
 
