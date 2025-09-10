@@ -5,71 +5,21 @@ import { useLocation } from "wouter";
 import { useEffect } from "react";
 
 export default function Login() {
-  const { t, login, isAuthenticated, isInitialized } = useApp();
+  const { t, user } = useApp();
   const [, navigate] = useLocation();
 
   // Redirect if already authenticated
   useEffect(() => {
-    if (isAuthenticated) {
+    if (user) {
       navigate("/");
     }
-  }, [isAuthenticated, navigate]);
+  }, [user, navigate]);
 
-  // Handle login button click
-  const handleLogin = async () => {
-    try {
-      await login();
-    } catch (error) {
-      console.error("[LOGIN] Keycloak login failed:", error);
-    }
+  // Simple Keycloak login - redirect to backend
+  const handleKeycloakLogin = () => {
+    console.log("[LOGIN] Redirecting to Keycloak...");
+    window.location.href = "/api/auth/login";
   };
-
-  // Show loading while Keycloak initializes
-  if (!isInitialized) {
-    return (
-      <div className="fixed inset-0">
-        {/* Background */}
-        <img
-          src="/background.svg"
-          alt="Background"
-          aria-hidden="true"
-          className="absolute inset-0 w-full h-full object-cover object-top pointer-events-none select-none"
-        />
-        {/* Overlay */}
-        <div className="absolute inset-0 bg-black/30" aria-hidden="true" />
-
-        {/* Loading Content */}
-        <div className="relative z-10 flex items-center justify-center min-h-screen p-4">
-          <Card className="w-full max-w-lg shadow-2xl bg-white/95 backdrop-blur-sm border-0">
-            <CardContent className="p-8">
-              <div className="text-center">
-                <div className="flex justify-center mb-6">
-                  <img
-                    src="/ARENA2036_logomark_orange.svg"
-                    alt="ARENA2036 Logo"
-                    className="w-20 h-20"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).style.display = "none";
-                    }}
-                  />
-                </div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                  {t("arena2036")}
-                </h1>
-                <p className="text-gray-600 mt-2">
-                  {t("edcManagementConsole")}
-                </p>
-                <div className="mt-8">
-                  <div className="w-6 h-6 border-2 border-[#F28C00] border-t-transparent rounded-full animate-spin mx-auto" />
-                  <p className="text-gray-600 mt-4">Initializing authentication...</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="fixed inset-0">
@@ -110,14 +60,14 @@ export default function Login() {
             {/* Login Info */}
             <div className="text-center mb-6">
               <p className="text-gray-600 text-sm">
-                Sign in with your Central IDP account
+                Sign in with your Keycloak account
               </p>
             </div>
 
-            {/* Keycloak Login Button */}
+            {/* Simple Keycloak Login Button */}
             <div className="space-y-4">
               <Button
-                onClick={handleLogin}
+                onClick={handleKeycloakLogin}
                 className="w-full bg-[#F28C00] hover:bg-[#d67b00] text-white py-3 text-lg"
                 data-testid="keycloak-login"
               >
@@ -150,7 +100,7 @@ export default function Login() {
                       strokeLinejoin="round"
                     />
                   </svg>
-                  Sign in with Central IDP
+                  Login with Keycloak
                 </div>
               </Button>
             </div>
@@ -158,7 +108,7 @@ export default function Login() {
             {/* Security Info */}
             <div className="mt-6 text-center">
               <p className="text-xs text-gray-500">
-                Secure authentication powered by Keycloak
+                Client ID: CX-EDC • Secure SSO Authentication
               </p>
             </div>
           </CardContent>
