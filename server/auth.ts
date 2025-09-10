@@ -111,19 +111,20 @@ router.get("/login", async (req: Request, res: Response) => {
     (req.session as any).codeVerifier = codeVerifier;
     (req.session as any).state = state;
     
-    // Build authorization URL (v6+ API)
-    const authUrl = openidClient.buildAuthorizationUrl(authorizationServer, {
-      client_id: keycloakConfig.KC_CLIENT_ID,
-      redirect_uri: keycloakConfig.REDIRECT_URI,
-      scope: 'openid profile email',
-      response_type: 'code',
-      state: state,
-      code_challenge: codeChallenge,
-      code_challenge_method: 'S256'
-    });
+    // Build authorization URL (manual - more reliable)
+    const authParams = new URLSearchParams();
+    authParams.set("client_id", keycloakConfig.KC_CLIENT_ID);
+    authParams.set("redirect_uri", keycloakConfig.REDIRECT_URI);
+    authParams.set("scope", "openid profile email");
+    authParams.set("response_type", "code");
+    authParams.set("state", state);
+    authParams.set("code_challenge", codeChallenge);
+    authParams.set("code_challenge_method", "S256");
+    
+    const authUrl = `${authorizationServer.authorization_endpoint}?${authParams.toString()}`;
     
     console.log("[LOGIN] Authorization URL created, redirecting...");
-    res.redirect(authUrl.href);
+    res.redirect(authUrl);
   } catch (error: any) {
     console.error("[LOGIN] Error creating authorization URL:", error.message);
     res.status(500).json({ 
@@ -167,32 +168,47 @@ router.get("/callback", async (req: Request, res: Response) => {
     
     console.log("[CALLBACK] Exchanging authorization code for tokens...");
     
-    // Exchange code for tokens (v6+ API)
-    const tokenResponse = await openidClient.authorizationCodeGrant(
-      authorizationServer,
-      {
-        client_id: keycloakConfig.KC_CLIENT_ID,
-        client_secret: keycloakConfig.KC_CLIENT_SECRET
+    // Exchange code for tokens (direct HTTP call)
+    const tokenBody = new URLSearchParams();
+    tokenBody.set("grant_type", "authorization_code");
+    tokenBody.set("client_id", keycloakConfig.KC_CLIENT_ID);
+    tokenBody.set("client_secret", keycloakConfig.KC_CLIENT_SECRET);
+    tokenBody.set("code", code as string);
+    tokenBody.set("redirect_uri", keycloakConfig.REDIRECT_URI);
+    tokenBody.set("code_verifier", (req.session as any).codeVerifier);
+    
+    const tokenResponse = await fetch(authorizationServer.token_endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json"
       },
-      {
-        code: code as string,
-        redirect_uri: keycloakConfig.REDIRECT_URI,
-        code_verifier: (req.session as any).codeVerifier
-      }
-    );
+      body: tokenBody.toString(),
+    });
+    
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text();
+      console.error("[CALLBACK] Token exchange failed:", tokenResponse.status, errorText);
+      throw new Error(`Token exchange failed: ${errorText}`);
+    }
     
     const tokens = await tokenResponse.json();
     console.log("[CALLBACK] Token exchange successful");
     
-    // Get user info (v6+ API)
-    const userInfoResponse = await openidClient.fetchUserInfo(
-      authorizationServer,
-      tokens.access_token,
-      {
-        client_id: keycloakConfig.KC_CLIENT_ID,
-        client_secret: keycloakConfig.KC_CLIENT_SECRET
+    // Get user info (direct HTTP call)
+    const userInfoResponse = await fetch(authorizationServer.userinfo_endpoint, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${tokens.access_token}`,
+        "Accept": "application/json"
       }
-    );
+    });
+    
+    if (!userInfoResponse.ok) {
+      const errorText = await userInfoResponse.text();
+      console.error("[CALLBACK] User info failed:", userInfoResponse.status, errorText);
+      throw new Error(`User info failed: ${errorText}`);
+    }
     
     const userInfo = await userInfoResponse.json();
     console.log("[CALLBACK] User info retrieved:", userInfo.preferred_username || userInfo.email);
@@ -289,7 +305,7 @@ router.get("/me", requireAuthentication, (req: Request, res: Response) => {
 
 // 4. Logout Route - Destroy session and redirect to Keycloak logout
 router.get("/logout", async (req: Request, res: Response) => {
-  if (!client) {
+  if (!authorizationServer) {
     return res.status(500).json({ 
       message: "Keycloak client not initialized",
       error: "Server configuration error" 
@@ -299,15 +315,19 @@ router.get("/logout", async (req: Request, res: Response) => {
   try {
     const session = req.session as any;
     const username = session.user?.username;
+    const accessToken = session.user?.tokenSet?.access_token;
     
     console.log("[LOGOUT] Logging out user:", username || "unknown");
     
-    // Create Keycloak logout URL (v6+ API)
-    const logoutUrl = openidClient.buildEndSessionUrl(authorizationServer, {
-      client_id: keycloakConfig.KC_CLIENT_ID,
-      id_token_hint: accessToken, // Optional but recommended
-      post_logout_redirect_uri: process.env.POST_LOGOUT_REDIRECT_URI || "http://localhost:5000"
-    });
+    // Create Keycloak logout URL (manual)
+    const logoutParams = new URLSearchParams();
+    logoutParams.set("client_id", keycloakConfig.KC_CLIENT_ID);
+    if (accessToken) {
+      logoutParams.set("id_token_hint", accessToken);
+    }
+    logoutParams.set("post_logout_redirect_uri", process.env.POST_LOGOUT_REDIRECT_URI || "http://localhost:5000");
+    
+    const logoutUrl = `${authorizationServer.end_session_endpoint}?${logoutParams.toString()}`;
     
     // Destroy session
     req.session.destroy((err) => {
@@ -319,7 +339,7 @@ router.get("/logout", async (req: Request, res: Response) => {
     });
     
     console.log("[LOGOUT] Redirecting to Keycloak logout...");
-    res.redirect(logoutUrl.href);
+    res.redirect(logoutUrl);
   } catch (error: any) {
     console.error("[LOGOUT] Logout error:", error.message);
     res.status(500).json({ 
