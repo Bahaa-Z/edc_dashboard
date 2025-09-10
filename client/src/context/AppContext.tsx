@@ -60,11 +60,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Simple logout - redirect to backend logout
-  const logout = () => {
-    console.log("[LOGOUT] Logging out...");
-    setUser(null);
-    window.location.href = "/api/auth/logout";
+  // Simple logout - call backend logout
+  const logout = async () => {
+    try {
+      console.log("[LOGOUT] Logging out...");
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include"
+      });
+      setUser(null);
+      window.location.reload(); // Refresh to show login page
+    } catch (error) {
+      console.error("[LOGOUT] Error:", error);
+      setUser(null);
+      window.location.reload();
+    }
   };
 
   // Check auth on mount
