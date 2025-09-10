@@ -18,10 +18,14 @@ console.log("- KC_CLIENT_ID:", keycloakConfig.KC_CLIENT_ID);
 console.log("- Redirect URI:", keycloakConfig.REDIRECT_URI);
 console.log("- Real Keycloak authentication with user activity in logs");
 
-// Keycloak Discovery URL
-const DISCOVERY_URL = `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}/.well-known/openid-connect/configuration`;
+// Keycloak Discovery URLs (try multiple patterns)
+const DISCOVERY_URLS = [
+  `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}/.well-known/openid-connect/configuration`,
+  `https://centralidp.arena2036-x.de/realms/${keycloakConfig.KC_REALM}/.well-known/openid-connect/configuration`,
+  `${keycloakConfig.KC_URL}/auth/realms/${keycloakConfig.KC_REALM}/.well-known/openid-connect/configuration`
+];
 
-console.log("[AUTH] Keycloak Discovery URL:", DISCOVERY_URL);
+console.log("[AUTH] Keycloak Discovery URLs:", DISCOVERY_URLS);
 
 // Keycloak Configuration (discovered)
 let authorizationServer: any;
@@ -30,14 +34,38 @@ async function initKeycloak() {
   try {
     console.log("[AUTH] Discovering Keycloak configuration...");
     
-    // Discover Keycloak authorization server (v6+ API)
-    try {
-      authorizationServer = await openidClient.discovery(new URL(DISCOVERY_URL));
-    } catch (error: any) {
-      console.warn("[AUTH] Discovery failed, trying legacy URL:", error.message);
-      // Try legacy discovery URL (older Keycloak versions)
-      const legacyUrl = `${keycloakConfig.KC_URL}/auth/realms/${keycloakConfig.KC_REALM}/.well-known/openid-connect/configuration`;
-      authorizationServer = await openidClient.discovery(new URL(legacyUrl));
+    // Try discovery with multiple URLs
+    let discoveryWorked = false;
+    for (const discoveryUrl of DISCOVERY_URLS) {
+      try {
+        console.log("[AUTH] Trying discovery URL:", discoveryUrl);
+        const response = await fetch(discoveryUrl);
+        if (response.ok) {
+          const config = await fetch(discoveryUrl).then(r => r.json());
+          authorizationServer = config;
+          console.log("[AUTH] Discovery successful with:", discoveryUrl);
+          discoveryWorked = true;
+          break;
+        } else {
+          console.log("[AUTH] Discovery URL failed:", response.status, discoveryUrl);
+        }
+      } catch (error: any) {
+        console.log("[AUTH] Discovery error:", error.message, "for", discoveryUrl);
+      }
+    }
+    
+    // If discovery fails, create manual configuration
+    if (!discoveryWorked) {
+      console.log("[AUTH] All discovery URLs failed - using manual configuration");
+      authorizationServer = {
+        issuer: `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}`,
+        authorization_endpoint: `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}/protocol/openid-connect/auth`,
+        token_endpoint: `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}/protocol/openid-connect/token`,
+        userinfo_endpoint: `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}/protocol/openid-connect/userinfo`,
+        end_session_endpoint: `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}/protocol/openid-connect/logout`,
+        jwks_uri: `${keycloakConfig.KC_URL}/realms/${keycloakConfig.KC_REALM}/protocol/openid-connect/certs`
+      };
+      console.log("[AUTH] Manual configuration created");
     }
     
     console.log("[AUTH] Discovered Keycloak issuer:", authorizationServer.issuer);
@@ -62,11 +90,11 @@ initKeycloak().then(config => {
 
 // Authorization Code Flow Routen
 
-// 1. Login Route - Redirect zu Keycloak
-router.get("/login", (req: Request, res: Response) => {
-  if (!client) {
+// 1. Login Route - Redirect zu Keycloak  
+router.get("/login", async (req: Request, res: Response) => {
+  if (!authorizationServer) {
     return res.status(500).json({ 
-      message: "Keycloak client not initialized",
+      message: "Keycloak configuration not loaded",
       error: "Server configuration error" 
     });
   }
@@ -74,13 +102,28 @@ router.get("/login", (req: Request, res: Response) => {
   try {
     console.log("[LOGIN] Redirecting user to Keycloak...");
     
-    const authUrl = client.authorizationUrl({
+    // Generate PKCE verifier and challenge (best practice)
+    const codeVerifier = openidClient.randomPKCECodeVerifier();
+    const codeChallenge = await openidClient.calculatePKCECodeChallenge(codeVerifier);
+    const state = openidClient.randomState();
+    
+    // Store PKCE verifier and state in session
+    (req.session as any).codeVerifier = codeVerifier;
+    (req.session as any).state = state;
+    
+    // Build authorization URL (v6+ API)
+    const authUrl = openidClient.buildAuthorizationUrl(authorizationServer, {
+      client_id: keycloakConfig.KC_CLIENT_ID,
+      redirect_uri: keycloakConfig.REDIRECT_URI,
       scope: 'openid profile email',
       response_type: 'code',
+      state: state,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256'
     });
     
-    console.log("[LOGIN] Authorization URL:", authUrl);
-    res.redirect(authUrl);
+    console.log("[LOGIN] Authorization URL created, redirecting...");
+    res.redirect(authUrl.href);
   } catch (error: any) {
     console.error("[LOGIN] Error creating authorization URL:", error.message);
     res.status(500).json({ 
@@ -92,7 +135,7 @@ router.get("/login", (req: Request, res: Response) => {
 
 // 2. Callback Route - Handle Keycloak response
 router.get("/callback", async (req: Request, res: Response) => {
-  if (!client) {
+  if (!authorizationServer) {
     return res.status(500).json({ 
       message: "Keycloak client not initialized",
       error: "Server configuration error" 
@@ -102,15 +145,56 @@ router.get("/callback", async (req: Request, res: Response) => {
   try {
     console.log("[CALLBACK] Processing Keycloak callback...");
     
-    const params = client.callbackParams(req);
-    console.log("[CALLBACK] Received params:", Object.keys(params));
+    const { code, state } = req.query;
     
-    // Exchange code for tokens
-    const tokenSet = await client.callback(keycloakConfig.REDIRECT_URI, params);
+    if (!code) {
+      console.error("[CALLBACK] No authorization code received");
+      return res.status(400).json({ 
+        message: "Authorization code missing",
+        error: "Invalid callback request" 
+      });
+    }
+    
+    // Verify state parameter
+    const sessionState = (req.session as any).state;
+    if (state !== sessionState) {
+      console.error("[CALLBACK] State mismatch - possible CSRF attack");
+      return res.status(400).json({ 
+        message: "State parameter mismatch",
+        error: "Invalid callback request" 
+      });
+    }
+    
+    console.log("[CALLBACK] Exchanging authorization code for tokens...");
+    
+    // Exchange code for tokens (v6+ API)
+    const tokenResponse = await openidClient.authorizationCodeGrant(
+      authorizationServer,
+      {
+        client_id: keycloakConfig.KC_CLIENT_ID,
+        client_secret: keycloakConfig.KC_CLIENT_SECRET
+      },
+      {
+        code: code as string,
+        redirect_uri: keycloakConfig.REDIRECT_URI,
+        code_verifier: (req.session as any).codeVerifier
+      }
+    );
+    
+    const tokens = await tokenResponse.json();
     console.log("[CALLBACK] Token exchange successful");
     
-    // Get user info
-    const userInfo = await client.userinfo(tokenSet.access_token!);
+    // Get user info (v6+ API)
+    const userInfoResponse = await openidClient.fetchUserInfo(
+      authorizationServer,
+      tokens.access_token,
+      {
+        client_id: keycloakConfig.KC_CLIENT_ID,
+        client_secret: keycloakConfig.KC_CLIENT_SECRET
+      }
+    );
+    
+    const userInfo = await userInfoResponse.json();
     console.log("[CALLBACK] User info retrieved:", userInfo.preferred_username || userInfo.email);
     
     // Store user in session
@@ -120,13 +204,19 @@ router.get("/callback", async (req: Request, res: Response) => {
       email: userInfo.email,
       name: userInfo.name,
       tokenSet: {
-        access_token: tokenSet.access_token,
-        refresh_token: tokenSet.refresh_token,
-        expires_at: tokenSet.expires_at
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expires_in: tokens.expires_in,
+        token_type: tokens.token_type
       }
     };
     
+    // Clean up session
+    delete (req.session as any).codeVerifier;
+    delete (req.session as any).state;
+    
     console.log("[CALLBACK] User session created for:", userInfo.preferred_username || userInfo.email);
+    console.log("[CALLBACK] ✅ User will appear in Keycloak logs");
     
     // Redirect to dashboard
     res.redirect('/');
@@ -212,8 +302,10 @@ router.get("/logout", async (req: Request, res: Response) => {
     
     console.log("[LOGOUT] Logging out user:", username || "unknown");
     
-    // Create Keycloak logout URL
-    const logoutUrl = client.endSessionUrl({
+    // Create Keycloak logout URL (v6+ API)
+    const logoutUrl = openidClient.buildEndSessionUrl(authorizationServer, {
+      client_id: keycloakConfig.KC_CLIENT_ID,
+      id_token_hint: accessToken, // Optional but recommended
       post_logout_redirect_uri: process.env.POST_LOGOUT_REDIRECT_URI || "http://localhost:5000"
     });
     
@@ -226,8 +318,8 @@ router.get("/logout", async (req: Request, res: Response) => {
       }
     });
     
-    console.log("[LOGOUT] Redirecting to Keycloak logout:", logoutUrl);
-    res.redirect(logoutUrl);
+    console.log("[LOGOUT] Redirecting to Keycloak logout...");
+    res.redirect(logoutUrl.href);
   } catch (error: any) {
     console.error("[LOGOUT] Logout error:", error.message);
     res.status(500).json({ 
