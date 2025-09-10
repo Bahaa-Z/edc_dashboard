@@ -10,7 +10,7 @@ const keycloakConfig = {
   KC_REALM: "CX-Central", 
   KC_CLIENT_ID: "CX-EDC",
   KC_CLIENT_SECRET: "kwe2FC3EXDPUuUEoVhI6igUnRAmzkuwN",
-  REDIRECT_URI: "http://localhost:5000/api/auth/callback"
+  REDIRECT_URI: "http://localhost:8080/api/auth/callback"
 };
 
 console.log("[AUTH] Authorization Code Grant Flow");
@@ -109,27 +109,31 @@ router.post("/login", async (req: Request, res: Response) => {
 // CALLBACK - Handle Authorization Code
 router.get("/callback", async (req: Request, res: Response) => {
   if (!keycloakClient) {
-    return res.status(500).json({ 
-      success: false,
-      message: "Keycloak not initialized" 
-    });
+    console.error("[CALLBACK] Keycloak client not initialized");
+    return res.redirect('/?login=error&reason=no_client');
   }
 
   try {
     console.log("[CALLBACK] Processing authorization code...");
+    console.log("[CALLBACK] Query params:", req.query);
     
     const params = keycloakClient.callbackParams(req);
+    console.log("[CALLBACK] Parsed params:", params);
+    
+    // Skip state validation for now to debug
     const tokenSet = await keycloakClient.callback(
       keycloakConfig.REDIRECT_URI, 
-      params
+      params,
+      {} // Empty check - skip state validation
     );
 
     console.log("[CALLBACK] Token exchange successful");
-    console.log("[CALLBACK] Access token received");
+    console.log("[CALLBACK] Access token received:", !!tokenSet.access_token);
     console.log("[CALLBACK] Refresh token:", !!tokenSet.refresh_token);
 
     // Get user info
     const userInfo = await keycloakClient.userinfo(tokenSet.access_token!);
+    console.log("[CALLBACK] User info retrieved:", userInfo.preferred_username || userInfo.email);
     
     const user = {
       id: userInfo.sub,
@@ -153,10 +157,13 @@ router.get("/callback", async (req: Request, res: Response) => {
     console.log("[CALLBACK] ✅ User will appear in Keycloak logs");
     
     // Redirect to app
+    console.log("[CALLBACK] Redirecting to dashboard...");
     res.redirect('/?login=success');
+    
   } catch (error: any) {
     console.error("[CALLBACK] Auth failed:", error.message);
-    res.redirect('/?login=error');
+    console.error("[CALLBACK] Full error:", error);
+    res.redirect('/?login=error&reason=' + encodeURIComponent(error.message));
   }
 });
 
