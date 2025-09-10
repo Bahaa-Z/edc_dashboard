@@ -8,22 +8,17 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
-/** API-Request Helper (Keycloak JWT Token based) */
+/** API-Request Helper (Session-based) */
 export async function apiRequest(method: string, url: string, data?: unknown) {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "Accept": "application/json",
   };
 
-  // Get Keycloak token - import dynamically to avoid circular dependencies
-  const { keycloak } = await import("@/auth/keycloak");
-  if (keycloak.token) {
-    headers["Authorization"] = `Bearer ${keycloak.token}`;
-  }
-
   const res = await fetch(url, {
     method,
     headers,
+    credentials: "include", // Include session cookies
     body: data ? JSON.stringify(data) : undefined,
   });
   await throwIfResNotOk(res);
@@ -32,20 +27,15 @@ export async function apiRequest(method: string, url: string, data?: unknown) {
 
 type UnauthorizedBehavior = "returnNull" | "throw";
 
-/** Default QueryFn für React Query (Keycloak JWT Token based) */
+/** Default QueryFn für React Query (Session-based) */
 export function getQueryFn<T>({ on401 }: { on401: UnauthorizedBehavior }) {
   return async ({ queryKey }: QueryFunctionContext): Promise<T | null> => {
     const url = String(queryKey.join("/"));
     const headers: Record<string, string> = { Accept: "application/json" };
 
-    // Get Keycloak token for queries - import dynamically to avoid circular dependencies
-    const { keycloak } = await import("@/auth/keycloak");
-    if (keycloak.token) {
-      headers["Authorization"] = `Bearer ${keycloak.token}`;
-    }
-
     const res = await fetch(url, {
       headers,
+      credentials: "include", // Include session cookies
     });
 
     if (on401 === "returnNull" && res.status === 401) return null;
