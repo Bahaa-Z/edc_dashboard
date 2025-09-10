@@ -80,13 +80,17 @@ router.post("/login", async (req: Request, res: Response) => {
   try {
     console.log("[LOGIN] Starting Authorization Code Grant Flow...");
     
+    // Generate state and store in session
+    const state = 'auth-state-' + Date.now();
+    (req.session as any).auth_state = state;
+    
     // Create authorization URL mit Standard Scopes
     const authUrl = keycloakClient.authorizationUrl({
       scope: 'openid profile email', // Standard OpenID Connect Scopes
-      state: 'auth-state-' + Date.now()
+      state: state
     });
 
-    console.log("[LOGIN] Redirect URL created");
+    console.log("[LOGIN] Redirect URL created with state:", state);
     
     res.json({
       success: true,
@@ -120,11 +124,15 @@ router.get("/callback", async (req: Request, res: Response) => {
     const params = keycloakClient.callbackParams(req);
     console.log("[CALLBACK] Parsed params:", params);
     
-    // Skip state validation for now to debug
+    // Proper state validation
+    const sessionState = (req.session as any).auth_state;
+    console.log("[CALLBACK] Session state:", sessionState);
+    console.log("[CALLBACK] Received state:", params.state);
+    
     const tokenSet = await keycloakClient.callback(
       keycloakConfig.REDIRECT_URI, 
       params,
-      {} // Empty check - skip state validation
+      { state: sessionState } // Proper state validation
     );
 
     console.log("[CALLBACK] Token exchange successful");
