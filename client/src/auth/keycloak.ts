@@ -106,8 +106,14 @@ export const login = () => {
   console.log('[KEYCLOAK] Redirecting to Keycloak login page (Authorization Code + PKCE)');
   console.log('[KEYCLOAK] Current location:', window.location.href);
   
-  // Use default redirect (current location) - no custom redirectUri needed
-  getKeycloakInstance().login();
+  // Force localhost:3030 redirect URI
+  const redirectUri = 'http://localhost:3030/';
+  console.log('[KEYCLOAK] FORCED Redirect URI:', redirectUri);
+  console.warn('[DEBUG] Forcing redirect to localhost:3030 for testing');
+  
+  getKeycloakInstance().login({
+    redirectUri: redirectUri
+  });
 };
 
 // Logout - Redirect zu Keycloak Logout
@@ -115,8 +121,14 @@ export const logout = () => {
   console.log('[KEYCLOAK] Redirecting to Keycloak logout page');
   console.log('[KEYCLOAK] Current location:', window.location.href);
   
-  // Use default redirect (current location) - no custom redirectUri needed
-  getKeycloakInstance().logout();
+  // Force localhost:3030 redirect URI
+  const redirectUri = 'http://localhost:3030/';
+  console.log('[KEYCLOAK] FORCED Logout redirect URI:', redirectUri);
+  console.warn('[DEBUG] Forcing logout redirect to localhost:3030 for testing');
+  
+  getKeycloakInstance().logout({
+    redirectUri: redirectUri
+  });
 };
 
 // Get Access Token für API Calls
