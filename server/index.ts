@@ -17,9 +17,9 @@ app.use(
     origin: process.env.NODE_ENV === "development" 
       ? [
           "http://localhost:5173", 
-          "http://0.0.0.0:5000", 
-          "http://localhost:5000",
-          "http://127.0.0.1:5000",
+          "http://0.0.0.0:3030", 
+          "http://localhost:3030",
+          "http://127.0.0.1:3030",
           "null" // For direct file:// access
         ] 
       : true,
@@ -51,5 +51,5 @@ if (app.get("env") === "development") {
   serveStatic(app);
 }
 
-const port = parseInt(process.env.PORT || "5000", 10);
+const port = parseInt(process.env.PORT || "3030", 10);
 httpServer.listen(port, "0.0.0.0", () => log(`serving on http://0.0.0.0:${port}`));

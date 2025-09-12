@@ -5,7 +5,7 @@ import jwksClient from 'jwks-rsa';
 // Keycloak JWKS Configuration
 const KEYCLOAK_URL = 'https://centralidp.arena2036-x.de/auth';
 const KEYCLOAK_REALM = 'CX-Central';
-const KEYCLOAK_CLIENT_ID = 'Cl1-CX-Registration';
+const KEYCLOAK_CLIENT_ID = 'CX-EDC';
 
 const ISSUER_URL = `${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}`;
 const JWKS_URL = `${ISSUER_URL}/protocol/openid-connect/certs`;

@@ -1,10 +1,10 @@
 import Keycloak from 'keycloak-js';
 
-// Keycloak OIDC Configuration - Using client with broader redirect URIs
+// Keycloak OIDC Configuration - Using CX-EDC client
 const keycloakConfig = {
   url: 'https://centralidp.arena2036-x.de/auth',
   realm: 'CX-Central',
-  clientId: 'Cl1-CX-Registration', // Try different client that might have localhost configured
+  clientId: 'CX-EDC', // User requested client
 };
 
 console.log('[KEYCLOAK] Initializing OIDC Authorization Code + PKCE Flow');
