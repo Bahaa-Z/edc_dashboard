@@ -1,10 +1,7 @@
 // server/index.ts
 import express from "express";
-import cookieParser from "cookie-parser";
-import session from "express-session";
 import cors from "cors";
 import { createServer } from "http";
-import authRoutes from "./auth";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import "dotenv/config";
@@ -15,7 +12,6 @@ const httpServer = createServer(app);
 app.set("trust proxy", 1);
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-app.use(cookieParser());
 app.use(
   cors({
     origin: process.env.NODE_ENV === "development" 
@@ -27,21 +23,13 @@ app.use(
           "null" // For direct file:// access
         ] 
       : true,
-    credentials: true,
+    credentials: false, // JWT in Authorization header, no cookies needed
+    allowedHeaders: ["Content-Type", "Authorization"], // Allow Authorization header
   })
 );
-app.use(
-  session({
-    name: process.env.SESSION_NAME || "edc_mc_sid",
-    secret: process.env.SESSION_SECRET || "dev-secret",
-    resave: false,
-    saveUninitialized: false,
-    cookie: { httpOnly: true, sameSite: "lax", secure: false },
-  })
-);
+// OIDC Authorization Code + PKCE - No sessions needed (JWT only)
 
-// 💥 API-Routen VOR Vite/Static mounten
-app.use("/api/auth", authRoutes);
+// 💥 API-Routen VOR Vite/Static mounten (NO AUTH ROUTES - Keycloak handles authentication)
 await registerRoutes(app); // deine /api/stats, /api/connectors etc.
 
 // 🔎 optional: Wenn eine /api/* Route nicht gefunden wurde → 404 JSON,

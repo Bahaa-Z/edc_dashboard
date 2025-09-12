@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertConnectorSchema, insertDataspaceSettingsSchema, loginSchema } from "@shared/schema";
+import { insertConnectorSchema, insertDataspaceSettingsSchema } from "@shared/schema";
 import { z } from "zod";
 import { Router } from "express";
 import { requireAuth } from "./auth-middleware";

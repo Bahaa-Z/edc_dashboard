@@ -15,10 +15,18 @@ export async function apiRequest(method: string, url: string, data?: unknown) {
     "Accept": "application/json",
   };
 
-  // Get JWT token from storage (SDE approach)
-  const token = localStorage.getItem("app_auth_token") || sessionStorage.getItem("app_auth_token");
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+  // Get JWT token from Keycloak OIDC
+  const { getAccessToken, updateToken } = await import("@/auth/keycloak");
+  
+  try {
+    // Refresh token if needed (30 seconds before expiry)
+    await updateToken(30);
+    const token = getAccessToken();
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+  } catch (error) {
+    console.log('[API] Token refresh failed, continuing without token:', error);
   }
 
   const res = await fetch(url, {
@@ -39,10 +47,16 @@ export function getQueryFn<T>({ on401 }: { on401: UnauthorizedBehavior }) {
     const url = String(queryKey.join("/"));
     const headers: Record<string, string> = { Accept: "application/json" };
 
-    // Get JWT token for queries
-    const token = localStorage.getItem("app_auth_token") || sessionStorage.getItem("app_auth_token");
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
+    // Get JWT token from Keycloak for queries
+    try {
+      const { getAccessToken, updateToken } = await import("@/auth/keycloak");
+      await updateToken(30);
+      const token = getAccessToken();
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+    } catch (error) {
+      console.log('[QUERY] Token refresh failed:', error);
     }
 
     const res = await fetch(url, {

@@ -49,11 +49,7 @@ export const insertDataspaceSettingsSchema = createInsertSchema(dataspaceSetting
   id: true,
 });
 
-export const loginSchema = z.object({
-  username: z.string().min(1, "Username is required"),
-  password: z.string().min(1, "Password is required"), // Password required for service account auth
-  rememberMe: z.boolean().optional().default(false),
-});
+// Removed loginSchema - authentication now handled via Keycloak OIDC
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -62,4 +58,4 @@ export type Connector = typeof connectors.$inferSelect;
 export type InsertDataspaceSettings = z.infer<typeof insertDataspaceSettingsSchema>;
 export type DataspaceSettings = typeof dataspaceSettings.$inferSelect;
 export type Stats = typeof stats.$inferSelect;
-export type LoginCredentials = z.infer<typeof loginSchema>;
+// Removed LoginCredentials - authentication now handled via Keycloak OIDC

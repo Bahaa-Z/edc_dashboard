@@ -3,10 +3,8 @@ import { Switch, Route, Redirect } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AppProvider, useApp } from "@/context/AppContext";
 import { queryClient } from "./lib/queryClient";
 import { AppLayout } from "@/components/layout/AppLayout";
-import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import DataspaceSettings from "@/pages/DataspaceSettings";
 import Sde from "@/pages/Sde";
@@ -15,24 +13,22 @@ import ProcessLogs from "@/pages/ProcessLogs";
 import EdcTransactions from "@/pages/EdcTransactions";
 import NotFound from "@/pages/not-found";
 import { useEffect, useState } from "react";
+import { initKeycloak, isAuthenticated, login } from "@/auth/keycloak";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useApp();
-  if (!isAuthenticated) return <Redirect to="/login" />;
-  return <>{children}</>;
-}
-function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useApp();
-  if (isAuthenticated) return <Redirect to="/" />;
+  if (!isAuthenticated()) {
+    console.log('[PROTECTED_ROUTE] User not authenticated, redirecting to Keycloak');
+    login(); // Redirect to Keycloak login page
+    return <div className="flex items-center justify-center h-screen">
+      <div className="text-lg">Redirecting to login...</div>
+    </div>;
+  }
   return <>{children}</>;
 }
 function Router() {
   return (
     <Switch>
-      <Route path="/login">
-        <PublicRoute><Login /></PublicRoute>
-      </Route>
-
+      {/* Alle Routen sind Protected - kein /login Route (Keycloak übernimmt) */}
       <Route path="/">
         <ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>
       </Route>
@@ -63,13 +59,37 @@ function Router() {
 }
 
 export default function App() {
+  const [keycloakInitialized, setKeycloakInitialized] = useState(false);
+
+  useEffect(() => {
+    // Keycloak OIDC Initialization
+    console.log('[APP] Starting Keycloak OIDC initialization...');
+    initKeycloak()
+      .then((authenticated) => {
+        console.log('[APP] Keycloak initialized. User authenticated:', authenticated);
+        setKeycloakInitialized(true);
+      })
+      .catch((error) => {
+        console.error('[APP] Keycloak initialization failed:', error);
+        setKeycloakInitialized(true); // Continue even if failed
+      });
+  }, []);
+
+  // Show loading spinner while Keycloak initializes
+  if (!keycloakInitialized) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+        <div className="ml-4 text-lg">Initializing authentication...</div>
+      </div>
+    );
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <AppProvider>
-          <Toaster />
-          <Router />
-        </AppProvider>
+        <Toaster />
+        <Router />
       </TooltipProvider>
     </QueryClientProvider>
   );

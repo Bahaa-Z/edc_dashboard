@@ -5,17 +5,30 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useApp } from "@/context/AppContext";
 import { User, ChevronDown } from "lucide-react";
-import { useLocation } from "wouter";
+import { getUser, logout } from "@/auth/keycloak";
+import { useState, useEffect } from "react";
+import { translations, type Language, type TranslationKey } from "@/lib/translations";
 
 export function TopBar() {
-  const { t, language, setLanguage, setUser, user } = useApp();
-  const [, navigate] = useLocation();
+  const [language, setLanguage] = useState<Language>(() => {
+    const saved = typeof window !== "undefined" ? localStorage.getItem("language") : null;
+    return saved === "de" || saved === "en" ? saved : "en";
+  });
+  
+  const [user, setUser] = useState<any>(null);
+  
+  useEffect(() => {
+    localStorage.setItem("language", language);
+    const keycloakUser = getUser();
+    setUser(keycloakUser);
+  }, [language]);
+
+  const t = (key: TranslationKey) => translations[language][key];
 
   const handleLogout = () => {
-    setUser(null);
-    navigate("/login");
+    console.log('[TOPBAR] User clicked logout, redirecting to Keycloak logout');
+    logout(); // Redirect to Keycloak logout page
   };
 
   return (
