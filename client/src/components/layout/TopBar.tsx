@@ -32,17 +32,17 @@ export function TopBar() {
   };
 
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
-      <div className="flex items-center justify-end space-x-4">
+    <header className="bg-gradient-to-r from-white to-gray-50 shadow-lg border-b border-gray-100 px-6 py-4 backdrop-blur">
+      <div className="flex items-center justify-end space-x-6">
         {/* Language Toggle */}
-        <div className="flex bg-gray-100 rounded-lg p-1" data-testid="language-toggle">
+        <div className="flex bg-gradient-to-r from-gray-100 to-gray-200 rounded-xl p-1 shadow-sm" data-testid="language-toggle">
           <Button
             variant={language === "en" ? "default" : "ghost"}
             size="sm"
-            className={`px-3 py-1 text-sm font-medium ${
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
               language === "en" 
-                ? "bg-white shadow-sm text-gray-700" 
-                : "text-gray-500 hover:text-gray-700"
+                ? "bg-white shadow-md text-gray-800 hover:shadow-lg" 
+                : "text-gray-600 hover:text-gray-800 hover:bg-white/50"
             }`}
             onClick={() => setLanguage("en")}
             data-testid="lang-en"
@@ -52,10 +52,10 @@ export function TopBar() {
           <Button
             variant={language === "de" ? "default" : "ghost"}
             size="sm"
-            className={`px-3 py-1 text-sm font-medium ${
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
               language === "de" 
-                ? "bg-white shadow-sm text-gray-700" 
-                : "text-gray-500 hover:text-gray-700"
+                ? "bg-white shadow-md text-gray-800 hover:shadow-lg" 
+                : "text-gray-600 hover:text-gray-800 hover:bg-white/50"
             }`}
             onClick={() => setLanguage("de")}
             data-testid="lang-de"
@@ -69,16 +69,22 @@ export function TopBar() {
           <DropdownMenuTrigger asChild>
             <Button 
               variant="ghost" 
-              className="flex items-center space-x-2 text-gray-700 hover:text-gray-900"
+              className="flex items-center space-x-3 text-gray-700 hover:text-gray-900 bg-white/50 hover:bg-white shadow-sm hover:shadow-md rounded-xl px-4 py-2 transition-all duration-200"
               data-testid="user-menu-trigger"
             >
-              <User className="h-5 w-5" />
-              <span className="font-medium">{user?.username || t("user")}</span>
+              <div className="p-1 bg-[var(--arena-orange)] bg-opacity-10 rounded-full">
+                <User className="h-4 w-4 text-[var(--arena-orange)]" />
+              </div>
+              <div className="flex flex-col items-start">
+                <span className="font-medium text-sm">{user?.username || t("user")}</span>
+                <span className="text-xs text-gray-500">EDC Admin</span>
+              </div>
               <ChevronDown className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={handleLogout} data-testid="logout-button">
+          <DropdownMenuContent align="end" className="w-56 bg-white shadow-xl border border-gray-100 rounded-xl">
+            <DropdownMenuItem onClick={handleLogout} data-testid="logout-button" className="px-4 py-3 hover:bg-red-50 text-red-600 hover:text-red-700 rounded-lg m-1">
+              <User className="h-4 w-4 mr-3" />
               {t("logout")}
             </DropdownMenuItem>
           </DropdownMenuContent>

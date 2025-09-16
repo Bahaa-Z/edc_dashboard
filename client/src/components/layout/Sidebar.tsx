@@ -36,21 +36,22 @@ export function Sidebar() {
   };
 
   return (
-    <div className="w-64 bg-white shadow-lg flex-shrink-0 border-r border-gray-200 h-full flex flex-col">
+    <div className="w-64 bg-gradient-to-b from-white to-gray-50 shadow-xl flex-shrink-0 border-r border-gray-200 h-full flex flex-col backdrop-blur">
       {/* Logo + Titel */}
-      <div className="p-4">
-        <h1 className="flex items-center gap-3 text-lg font-bold text-gray-800 mb-8" data-testid="sidebar-title">
-          <img 
-            src="/ARENA2036_logomark_orange.svg" 
-            alt="ARENA2036 Logo"
-            className="w-10 h-auto" // feste Breite
-          />
-          {t("edcManagementConsole")}
+      <div className="p-6 bg-gradient-to-r from-[var(--arena-orange)] to-orange-500 text-white">
+        <h1 className="flex items-center gap-3 text-lg font-bold mb-2" data-testid="sidebar-title">
+          <div className="p-2 bg-white/20 rounded-lg">
+            <Database className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="text-sm font-medium">ARENA2036</div>
+            <div className="text-xs text-orange-100">EDC Console</div>
+          </div>
         </h1>
       </div>
         
       {/* Navigation */}
-      <nav className="flex-1 space-y-2">
+      <nav className="flex-1 space-y-1 p-4">
         {/* Standard-Einträge */}
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -58,10 +59,10 @@ export function Sidebar() {
             <Button
               key={item.path}
               variant={isActive(item.path) ? "default" : "ghost"}
-              className={`w-full justify-start px-4 py-3 h-auto font-medium transition-colors ${
+              className={`w-full justify-start px-4 py-3 h-auto font-medium transition-all duration-200 rounded-xl ${
                 isActive(item.path) 
-                  ? "bg-[var(--arena-orange)] hover:bg-[var(--arena-orange-hover)] text-white" 
-                  : "text-gray-600 hover:bg-gray-100"
+                  ? "bg-gradient-to-r from-[var(--arena-orange)] to-orange-500 hover:from-[var(--arena-orange-hover)] hover:to-orange-600 text-white shadow-lg" 
+                  : "text-gray-700 hover:bg-white hover:shadow-md"
               }`}
               onClick={() => navigate(item.path)}
               data-testid={`nav-${item.path.replace("/", "") || "dashboard"}`}

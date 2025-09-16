@@ -87,14 +87,24 @@ export function ConnectorsTable() {
 
   return (
     <>
-      <Card className="bg-white shadow-sm border border-gray-200">
-        <CardHeader className="px-6 py-4 border-b border-gray-200 flex flex-row justify-between items-center space-y-0">
-          <h2 className="text-lg font-semibold text-gray-800" data-testid="connectors-table-title">
-            {t("manageConnectors")}
-          </h2>
+      <Card className="bg-white/90 backdrop-blur border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+        <CardHeader className="px-6 py-6 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100 flex flex-row justify-between items-center space-y-0">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-[var(--arena-orange)] bg-opacity-10 rounded-lg">
+              <Edit className="h-5 w-5 text-[var(--arena-orange)]" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-800" data-testid="connectors-table-title">
+                {t("manageConnectors")}
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Manage your EDC instances and connections
+              </p>
+            </div>
+          </div>
           <Button
             onClick={handleAddConnector}
-            className="bg-[var(--arena-orange)] hover:bg-[var(--arena-orange-hover)] text-white"
+            className="bg-gradient-to-r from-[var(--arena-orange)] to-orange-500 hover:from-[var(--arena-orange-hover)] hover:to-orange-600 text-white shadow-md hover:shadow-lg transition-all duration-200 px-6 py-3"
             data-testid="add-connector-button"
           >
             <Plus className="h-4 w-4 mr-2" />
