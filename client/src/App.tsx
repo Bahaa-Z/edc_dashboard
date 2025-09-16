@@ -14,6 +14,7 @@ import EdcTransactions from "@/pages/EdcTransactions";
 import NotFound from "@/pages/not-found";
 import { useEffect, useState } from "react";
 import { initKeycloak, isAuthenticated, login } from "@/auth/keycloak";
+import { AppProvider } from "@/context/AppContext";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (!isAuthenticated()) {
@@ -87,10 +88,12 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
+      <AppProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Router />
+        </TooltipProvider>
+      </AppProvider>
     </QueryClientProvider>
   );
 }
