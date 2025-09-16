@@ -8,23 +8,16 @@ import {
 import { User, ChevronDown } from "lucide-react";
 import { getUser, logout } from "@/auth/keycloak";
 import { useState, useEffect } from "react";
-import { translations, type Language, type TranslationKey } from "@/lib/translations";
+import { useApp } from "@/context/AppContext";
 
 export function TopBar() {
-  const [language, setLanguage] = useState<Language>(() => {
-    const saved = typeof window !== "undefined" ? localStorage.getItem("language") : null;
-    return saved === "de" || saved === "en" ? saved : "en";
-  });
-  
+  const { language, setLanguage, t } = useApp();
   const [user, setUser] = useState<any>(null);
   
   useEffect(() => {
-    localStorage.setItem("language", language);
     const keycloakUser = getUser();
     setUser(keycloakUser);
-  }, [language]);
-
-  const t = (key: TranslationKey) => translations[language][key];
+  }, []);
 
   const handleLogout = () => {
     console.log('[TOPBAR] User clicked logout, redirecting to Keycloak logout');
