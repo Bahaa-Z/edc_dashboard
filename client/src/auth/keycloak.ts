@@ -1,10 +1,10 @@
 import Keycloak from 'keycloak-js';
 
-// Keycloak OIDC Configuration - Using client that allows localhost
+// Keycloak OIDC Configuration
 const keycloakConfig = {
   url: 'https://centralidp.arena2036-x.de/auth',
   realm: 'CX-Central',
-  clientId: 'Cl2-CX-Portal', // This client likely allows localhost redirect URIs
+  clientId: 'CX-EDC', // Public client as requested
 };
 
 // Keycloak Instance (OIDC mit PKCE) - Singleton Pattern
