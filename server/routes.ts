@@ -47,8 +47,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
-  // Stats route (protected)
-  app.get("/api/stats", requireAuth, async (req, res) => {
+  // Stats route (DEMO MODE - temporarily without auth)
+  app.get("/api/stats", async (req, res) => {
     try {
       const stats = await storage.getStats();
       res.json(stats);
@@ -57,8 +57,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Connector routes (protected)
-  app.get("/api/connectors", requireAuth, async (req, res) => {
+  // Connector routes (DEMO MODE - temporarily without auth)
+  app.get("/api/connectors", async (req, res) => {
     try {
       const connectors = await storage.getConnectors();
       res.json(connectors);
@@ -67,7 +67,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/connectors", requireAuth, async (req, res) => {
+  app.post("/api/connectors", async (req, res) => {
     try {
       const connectorData = insertConnectorSchema.parse(req.body);
       const connector = await storage.createConnector(connectorData);
@@ -80,7 +80,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/connectors/:id", requireAuth, async (req, res) => {
+  app.put("/api/connectors/:id", async (req, res) => {
     try {
       const { id } = req.params;
       const updates = insertConnectorSchema.partial().parse(req.body);
@@ -99,7 +99,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/connectors/:id", requireAuth, async (req, res) => {
+  app.delete("/api/connectors/:id", async (req, res) => {
     try {
       const { id } = req.params;
       const deleted = await storage.deleteConnector(id);
@@ -111,6 +111,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "Connector deleted successfully" });
     } catch (error) {
       res.status(500).json({ message: "Failed to delete connector" });
+    }
+  });
+
+  // SDE Stats route (DEMO MODE - same as stats for demo)
+  app.get("/api/sde/stats", async (req, res) => {
+    try {
+      const stats = await storage.getStats();
+      // Add extra catalogs field for SDE compatibility
+      res.json({ ...stats, catalogs: 12 });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch SDE stats" });
     }
   });
 
@@ -137,20 +148,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // SDE proxy route (protected)
-  app.get("/api/sde/stats", requireAuth, async (req, res) => {
-    try {
-      // Mock SDE stats that match frontend expectations
-      const stats = await storage.getStats();
-      // Add additional SDE-specific fields
-      res.json({
-        ...stats,
-        catalogs: 2,
-      });
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch SDE stats" });
-    }
-  });
 
   const httpServer = createServer(app);
   return httpServer;

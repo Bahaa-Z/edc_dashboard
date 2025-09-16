@@ -17,13 +17,7 @@ import { initKeycloak, isAuthenticated, login } from "@/auth/keycloak";
 import { AppProvider } from "@/context/AppContext";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  if (!isAuthenticated()) {
-    console.log('[PROTECTED_ROUTE] User not authenticated, redirecting to Keycloak');
-    login(); // Redirect to Keycloak login page
-    return <div className="flex items-center justify-center h-screen">
-      <div className="text-lg">Redirecting to login...</div>
-    </div>;
-  }
+  // DEMO MODE: Skip authentication for demo purposes
   return <>{children}</>;
 }
 function Router() {
@@ -60,31 +54,8 @@ function Router() {
 }
 
 export default function App() {
-  const [keycloakInitialized, setKeycloakInitialized] = useState(false);
-
-  useEffect(() => {
-    // Keycloak OIDC Initialization
-    console.log('[APP] Starting Keycloak OIDC initialization...');
-    initKeycloak()
-      .then((authenticated) => {
-        console.log('[APP] Keycloak initialized. User authenticated:', authenticated);
-        setKeycloakInitialized(true);
-      })
-      .catch((error) => {
-        console.error('[APP] Keycloak initialization failed:', error);
-        setKeycloakInitialized(true); // Continue even if failed
-      });
-  }, []);
-
-  // Show loading spinner while Keycloak initializes
-  if (!keycloakInitialized) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-        <div className="ml-4 text-lg">Initializing authentication...</div>
-      </div>
-    );
-  }
+  // DEMO MODE: Skip Keycloak initialization for demo purposes
+  console.log('[APP] Running in DEMO MODE - skipping Keycloak authentication');
 
   return (
     <QueryClientProvider client={queryClient}>
