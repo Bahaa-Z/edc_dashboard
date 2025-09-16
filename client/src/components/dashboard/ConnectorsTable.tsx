@@ -42,6 +42,7 @@ export function ConnectorsTable() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/connectors"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sde/stats"] });
       toast({
         title: "Success",
         description: "Connector deleted successfully",

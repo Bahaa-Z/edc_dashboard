@@ -17,7 +17,7 @@ export default function Dashboard() {
               {t("dashboard")}
             </h1>
             <p className="text-orange-100 text-lg">
-              Welcome to your EDC Management Console
+              {t("welcomeMessage")}
             </p>
           </div>
           <div className="hidden md:flex items-center space-x-4">
@@ -32,12 +32,12 @@ export default function Dashboard() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600 flex items-center">
               <TrendingUp className="h-4 w-4 mr-2 text-green-600" />
-              System Health
+              {t("systemHealth")}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">Excellent</div>
-            <p className="text-xs text-gray-500 mt-1">All systems operational</p>
+            <div className="text-2xl font-bold text-green-600">{t("excellent")}</div>
+            <p className="text-xs text-gray-500 mt-1">{t("allSystemsOperational")}</p>
           </CardContent>
         </Card>
         
@@ -45,12 +45,12 @@ export default function Dashboard() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600 flex items-center">
               <Shield className="h-4 w-4 mr-2 text-blue-600" />
-              Security Status
+              {t("securityStatus")}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">Secured</div>
-            <p className="text-xs text-gray-500 mt-1">All connections encrypted</p>
+            <div className="text-2xl font-bold text-blue-600">{t("secured")}</div>
+            <p className="text-xs text-gray-500 mt-1">{t("allConnectionsEncrypted")}</p>
           </CardContent>
         </Card>
         
@@ -58,12 +58,12 @@ export default function Dashboard() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600 flex items-center">
               <Activity className="h-4 w-4 mr-2 text-[var(--arena-orange)]" />
-              Activity
+              {t("activity")}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-[var(--arena-orange)]">Active</div>
-            <p className="text-xs text-gray-500 mt-1">Data flows running</p>
+            <div className="text-2xl font-bold text-[var(--arena-orange)]">{t("active")}</div>
+            <p className="text-xs text-gray-500 mt-1">{t("dataFlowsRunning")}</p>
           </CardContent>
         </Card>
       </div>

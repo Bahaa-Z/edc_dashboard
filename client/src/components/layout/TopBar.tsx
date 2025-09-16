@@ -33,7 +33,21 @@ export function TopBar() {
 
   return (
     <header className="bg-gradient-to-r from-white to-gray-50 shadow-lg border-b border-gray-100 px-6 py-4 backdrop-blur">
-      <div className="flex items-center justify-end space-x-6">
+      <div className="flex items-center justify-between">
+        {/* Left side: App Branding */}
+        <div className="flex items-center space-x-3" data-testid="app-branding">
+          <img 
+            src="/ARENA2036_logomark_orange.svg" 
+            alt="ARENA2036 Logo"
+            className="h-8 w-auto"
+          />
+          <h1 className="text-xl font-bold text-gray-800">
+            ARENA2036 EDC Management Console
+          </h1>
+        </div>
+        
+        {/* Right side: Language Toggle and User Profile */}
+        <div className="flex items-center space-x-6">
         {/* Language Toggle */}
         <div className="flex bg-gradient-to-r from-gray-100 to-gray-200 rounded-xl p-1 shadow-sm" data-testid="language-toggle">
           <Button
@@ -76,7 +90,12 @@ export function TopBar() {
                 <User className="h-4 w-4 text-[var(--arena-orange)]" />
               </div>
               <div className="flex flex-col items-start">
-                <span className="font-medium text-sm">{user?.username || t("user")}</span>
+                <span className="font-medium text-sm">
+                  {user?.given_name && user?.family_name 
+                    ? `${user.given_name} ${user.family_name}`
+                    : user?.username || t("user")
+                  }
+                </span>
                 <span className="text-xs text-gray-500">EDC Admin</span>
               </div>
               <ChevronDown className="h-4 w-4" />
@@ -89,6 +108,7 @@ export function TopBar() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </div>
     </header>
   );

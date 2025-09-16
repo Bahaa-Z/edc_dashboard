@@ -1,0 +1,41 @@
+Prompt:
+
+I am building a React + TypeScript + Vite application with a Node.js/Express backend and Keycloak authentication (Authorization Code + PKCE flow). Please update my project according to the following requirements:
+
+Frontend (React + Tailwind + Wouter):
+	1.	App Branding (Top-Left):
+	•	Show the app name ARENA2036 EDC Management Console in the top-left corner.
+	•	Add the official ARENA logo left of the app name (SVG provided in public/ARENA2036_logomark_orange.svg).
+	•	Do not wrap this title and logo in orange boxes. Keep it clean, aligned in the header.
+	2.	Dashboard Rendering:
+	•	Ensure that all created components (connectors, dataspace settings, SDE stats, etc.) are properly displayed on the Dashboard.
+	•	Use a temporary in-memory store to display data until backend integration is complete.
+	3.	Internationalization (i18n):
+	•	Add a language switcher (DE / EN) in the header.
+	•	When clicked, the language changes instantly without refreshing the page.
+	•	Default language = English.
+	4.	User Profile Display (Top-Right):
+	•	Display the first name and last name of the logged-in user (from Keycloak token claims).
+	•	Add a circular avatar icon (user symbol) next to the name.
+	5.	Overview Page:
+	•	Display demo data for policies, contracts, assets, etc.
+	•	If possible, fetch live demo data from the SDE mock API /api/sde/stats.
+	6.	EDC Demo Connectors:
+	•	Show 2 demo EDC connectors on the Dashboard with mock data (e.g., Provider EDC and Consumer EDC).
+	•	Allow edit and delete actions to test functionality.
+
+Backend (Node.js + Express):
+	7.	Backend Infrastructure:
+	•	Set up backend routes with Express under /api.
+	•	Protect routes with requireAuth middleware (using Keycloak JWT).
+	•	Implement persistence layer:
+	•	Use PostgreSQL (via Drizzle ORM) to store connectors, dataspace settings, and user info.
+	•	Provide CRUD endpoints for connectors (GET /api/connectors, POST /api/connectors, PUT /api/connectors/:id, DELETE /api/connectors/:id).
+	•	Provide /api/stats and /api/settings/dataspace.
+	•	For now, populate the DB with demo connectors and stats.
+
+General:
+	•	Ensure the app layout is consistent (Topbar with logo + app name on the left, language switcher and user info on the right, Sidebar on the left, Dashboard content in the center).
+	•	Code must be modular, clean, and typed (TypeScript).
+	•	Use TailwindCSS for styling.
+	•	Make sure no hard page reload is required for login/logout or language switching.

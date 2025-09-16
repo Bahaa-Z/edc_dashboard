@@ -140,12 +140,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // SDE proxy route (protected)
   app.get("/api/sde/stats", requireAuth, async (req, res) => {
     try {
-      // Mock SDE stats for now
+      // Mock SDE stats that match frontend expectations
+      const stats = await storage.getStats();
+      // Add additional SDE-specific fields
       res.json({
-        assets: 5,
-        policies: 2,
-        contracts: 3,
-        catalogs: 1
+        ...stats,
+        catalogs: 2,
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch SDE stats" });

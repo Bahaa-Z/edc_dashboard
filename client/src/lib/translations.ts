@@ -49,6 +49,16 @@ export const translations = {
     openSdeInNewTab: 'Open SDE in new tab',
     placeholderPage: 'This page is under development.',
     user: 'User',
+    welcomeMessage: 'Welcome to your EDC Management Console',
+    systemHealth: 'System Health',
+    excellent: 'Excellent',
+    allSystemsOperational: 'All systems operational',
+    securityStatus: 'Security Status',
+    secured: 'Secured',
+    allConnectionsEncrypted: 'All connections encrypted',
+    activity: 'Activity',
+    active: 'Active',
+    dataFlowsRunning: 'Data flows running',
   },
   de: {
     dashboard: 'Dashboard',
@@ -100,6 +110,16 @@ export const translations = {
     openSdeInNewTab: 'SDE in neuem Tab öffnen',
     placeholderPage: 'Diese Seite wird gerade entwickelt.',
     user: 'Benutzer',
+    welcomeMessage: 'Willkommen in Ihrer EDC-Verwaltungskonsole',
+    systemHealth: 'Systemzustand',
+    excellent: 'Ausgezeichnet',
+    allSystemsOperational: 'Alle Systeme funktionsfähig',
+    securityStatus: 'Sicherheitsstatus',
+    secured: 'Gesichert',
+    allConnectionsEncrypted: 'Alle Verbindungen verschlüsselt',
+    activity: 'Aktivität',
+    active: 'Aktiv',
+    dataFlowsRunning: 'Datenflüsse laufen',
   }
 };
 

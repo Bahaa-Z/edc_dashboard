@@ -37,21 +37,9 @@ export function Sidebar() {
 
   return (
     <div className="w-64 bg-gradient-to-b from-white to-gray-50 shadow-xl flex-shrink-0 border-r border-gray-200 h-full flex flex-col backdrop-blur">
-      {/* Logo + Titel */}
-      <div className="p-6 bg-gradient-to-r from-[var(--arena-orange)] to-orange-500 text-white">
-        <h1 className="flex items-center gap-3 text-lg font-bold mb-2" data-testid="sidebar-title">
-          <div className="p-2 bg-white/20 rounded-lg">
-            <Database className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="text-sm font-medium">ARENA2036</div>
-            <div className="text-xs text-orange-100">EDC Console</div>
-          </div>
-        </h1>
-      </div>
         
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 p-4">
+      <nav className="flex-1 space-y-1 p-4 pt-6">
         {/* Standard-Einträge */}
         {navItems.map((item) => {
           const Icon = item.icon;
