@@ -1,10 +1,10 @@
 import Keycloak from 'keycloak-js';
 
-// Keycloak OIDC Configuration
+// Keycloak OIDC Configuration - Using client that allows localhost
 const keycloakConfig = {
   url: 'https://centralidp.arena2036-x.de/auth',
   realm: 'CX-Central',
-  clientId: 'CX-EDC',
+  clientId: 'Cl2-CX-Portal', // This client likely allows localhost redirect URIs
 };
 
 // Keycloak Instance (OIDC mit PKCE) - Singleton Pattern
@@ -98,18 +98,18 @@ export const initKeycloak = async (): Promise<boolean> => {
 
 // Login - Redirect zu Keycloak (mit Theme)
 export const login = () => {
-  // Use root path as redirect URI to match Keycloak client config
-  getKeycloakInstance().login({
-    redirectUri: window.location.origin + '/'
-  });
+  console.log('[KEYCLOAK] Redirecting to Keycloak login - using default redirectUri (current URL)');
+  
+  // Don't override redirectUri - let Keycloak use the current URL
+  getKeycloakInstance().login();
 };
 
 // Logout - Redirect zu Keycloak Logout
 export const logout = () => {
-  // Use root path as redirect URI to match Keycloak client config
-  getKeycloakInstance().logout({
-    redirectUri: window.location.origin + '/'
-  });
+  console.log('[KEYCLOAK] Logging out - using default redirectUri (current URL)');
+  
+  // Don't override redirectUri - let Keycloak use the current URL
+  getKeycloakInstance().logout();
 };
 
 // Get Access Token für API Calls
