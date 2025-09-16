@@ -1,16 +1,11 @@
 import Keycloak from 'keycloak-js';
 
-// Keycloak OIDC Configuration - Using CX-EDC client
+// Keycloak OIDC Configuration
 const keycloakConfig = {
   url: 'https://centralidp.arena2036-x.de/auth',
   realm: 'CX-Central',
-  clientId: 'CX-EDC', // User requested client
+  clientId: 'CX-EDC',
 };
-
-console.log('[KEYCLOAK] Initializing OIDC Authorization Code + PKCE Flow');
-console.log('- Client ID:', keycloakConfig.clientId);
-console.log('- Client Type: Public (no client secret)');
-console.log('- Flow: Authorization Code + PKCE');
 
 // Keycloak Instance (OIDC mit PKCE) - Singleton Pattern
 let keycloak: Keycloak | null = null;
@@ -103,31 +98,17 @@ export const initKeycloak = async (): Promise<boolean> => {
 
 // Login - Redirect zu Keycloak (mit Theme)
 export const login = () => {
-  console.log('[KEYCLOAK] Redirecting to Keycloak login page (Authorization Code + PKCE)');
-  console.log('[KEYCLOAK] Current location:', window.location.href);
-  
-  // Force localhost:3030 redirect URI
-  const redirectUri = 'http://localhost:3030/';
-  console.log('[KEYCLOAK] FORCED Redirect URI:', redirectUri);
-  console.warn('[DEBUG] Forcing redirect to localhost:3030 for testing');
-  
+  // Use root path as redirect URI to match Keycloak client config
   getKeycloakInstance().login({
-    redirectUri: redirectUri
+    redirectUri: window.location.origin + '/'
   });
 };
 
 // Logout - Redirect zu Keycloak Logout
 export const logout = () => {
-  console.log('[KEYCLOAK] Redirecting to Keycloak logout page');
-  console.log('[KEYCLOAK] Current location:', window.location.href);
-  
-  // Force localhost:3030 redirect URI
-  const redirectUri = 'http://localhost:3030/';
-  console.log('[KEYCLOAK] FORCED Logout redirect URI:', redirectUri);
-  console.warn('[DEBUG] Forcing logout redirect to localhost:3030 for testing');
-  
+  // Use root path as redirect URI to match Keycloak client config
   getKeycloakInstance().logout({
-    redirectUri: redirectUri
+    redirectUri: window.location.origin + '/'
   });
 };
 

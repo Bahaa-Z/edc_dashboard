@@ -62,7 +62,7 @@ export const requireAuth = (req: AuthenticatedRequest, res: Response, next: Next
   // Validate Keycloak JWT Token via JWKS
   jwt.verify(token, getKey, {
     // Allow audience array or single value containing cx-edc
-    audience: [KEYCLOAK_CLIENT_ID, 'account'], // Allow common Keycloak audiences
+    audience: KEYCLOAK_CLIENT_ID, // Only allow tokens for this specific client
     issuer: ISSUER_URL,
     algorithms: ['RS256'], // Keycloak uses RS256
   }, (err: any, decoded: any) => {
