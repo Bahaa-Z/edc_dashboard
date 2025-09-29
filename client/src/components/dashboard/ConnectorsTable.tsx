@@ -12,19 +12,20 @@ import { Badge } from "@/components/ui/badge";
 import { useApp } from "@/context/AppContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { Edit, Trash2, Plus } from "lucide-react";
+import { Edit, Trash2, Plus, FileText } from "lucide-react";
 import { useState } from "react";
 import { IntroWizardModal } from "@/components/modals/IntroWizardModal";
 import { AddEditConnectorModal } from "@/components/modals/AddEditConnectorModal";
 import { ConfirmDeleteDialog } from "@/components/modals/ConfirmDeleteDialog";
 import { Connector } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { EdcDetails } from "@/components/EdcDetailDrawer";
 
-export function ConnectorsTable() {
+export function ConnectorsTable({ onSelectEdc }: { onSelectEdc?: (edc: EdcDetails) => void }) {
   const { t } = useApp();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
+
   const [showIntroWizard, setShowIntroWizard] = useState(false);
   const [showAddEditModal, setShowAddEditModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -43,10 +44,7 @@ export function ConnectorsTable() {
       queryClient.invalidateQueries({ queryKey: ["/api/connectors"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/sde/stats"] });
-      toast({
-        title: "Success",
-        description: "Connector deleted successfully",
-      });
+      toast({ title: "Success", description: "Connector deleted successfully" });
       setShowDeleteDialog(false);
       setConnectorToDelete(null);
     },
@@ -59,9 +57,7 @@ export function ConnectorsTable() {
     },
   });
 
-  const handleAddConnector = () => {
-    setShowIntroWizard(true);
-  };
+  const handleAddConnector = () => setShowIntroWizard(true);
 
   const handleContinueFromWizard = (deploymentData?: any) => {
     setShowIntroWizard(false);
@@ -95,7 +91,7 @@ export function ConnectorsTable() {
               <Edit className="h-5 w-5 text-[var(--arena-orange)]" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-800" data-testid="connectors-table-title">
+              <h2 className="text-xl font-bold text-gray-800">
                 {t("manageConnectors")}
               </h2>
               <p className="text-sm text-gray-500 mt-1">
@@ -106,13 +102,12 @@ export function ConnectorsTable() {
           <Button
             onClick={handleAddConnector}
             className="bg-gradient-to-r from-[var(--arena-orange)] to-orange-500 hover:from-[var(--arena-orange-hover)] hover:to-orange-600 text-white shadow-md hover:shadow-lg transition-all duration-200 px-6 py-3"
-            data-testid="add-connector-button"
           >
             <Plus className="h-4 w-4 mr-2" />
             {t("addEdc")}
           </Button>
         </CardHeader>
-        
+
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
@@ -138,6 +133,7 @@ export function ConnectorsTable() {
                   </TableHead>
                 </TableRow>
               </TableHeader>
+
               <TableBody className="bg-white divide-y divide-gray-200">
                 {isLoading ? (
                   <TableRow>
@@ -153,10 +149,28 @@ export function ConnectorsTable() {
                   </TableRow>
                 ) : (
                   connectors.map((connector) => (
-                    <TableRow key={connector.id} data-testid={`connector-row-${connector.id}`}>
-                      <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <TableRow key={connector.id} className="group hover:bg-green-50 transition">
+                      {/* Name klickbar */}
+                      <TableCell
+                        className="px-6 py-4 whitespace-nowrap text-sm font-medium text-[var(--arena-orange)] hover:text-green-600 cursor-pointer group-hover:underline"
+                        onClick={() =>
+                          onSelectEdc?.({
+                            name: connector.name,
+                            status: connector.status,
+                            assetCount: 0,
+                            policyCount: 0,
+                            contractCount: 0,
+                            version: connector.version,
+                            url: connector.endpoint,
+                            bpn: connector.bpn,
+                            dataSpace: "Catena-X",
+                            yaml: `version: ${connector.version}\nbpn: ${connector.bpn}\nendpoint: ${connector.endpoint}`,
+                          })
+                        }
+                      >
                         {connector.name}
                       </TableCell>
+
                       <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {connector.version}
                       </TableCell>
@@ -164,7 +178,7 @@ export function ConnectorsTable() {
                         {connector.bpn}
                       </TableCell>
                       <TableCell className="px-6 py-4 whitespace-nowrap">
-                        <Badge 
+                        <Badge
                           variant={connector.status === "Connected" ? "default" : "secondary"}
                           className={connector.status === "Connected" ? "bg-green-100 text-green-800" : ""}
                         >
@@ -178,9 +192,30 @@ export function ConnectorsTable() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          onClick={() =>
+                            onSelectEdc?.({
+                              name: connector.name,
+                              status: connector.status,
+                              assetCount: 0,
+                              policyCount: 0,
+                              contractCount: 0,
+                              version: connector.version,
+                              url: connector.endpoint,
+                              bpn: connector.bpn,
+                              dataSpace: "Catena-X",
+                              yaml: `version: ${connector.version}\nbpn: ${connector.bpn}\nendpoint: ${connector.endpoint}`,
+                            })
+                          }
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          <FileText className="h-4 w-4 mr-1" />
+                          YAML
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => handleEditConnector(connector)}
                           className="text-[var(--arena-orange)] hover:text-[var(--arena-orange-hover)]"
-                          data-testid={`edit-connector-${connector.id}`}
                         >
                           <Edit className="h-4 w-4 mr-1" />
                           {t("edit")}
@@ -190,7 +225,6 @@ export function ConnectorsTable() {
                           size="sm"
                           onClick={() => handleDeleteConnector(connector)}
                           className="text-red-600 hover:text-red-800"
-                          data-testid={`delete-connector-${connector.id}`}
                         >
                           <Trash2 className="h-4 w-4 mr-1" />
                           {t("delete")}
@@ -205,12 +239,12 @@ export function ConnectorsTable() {
         </CardContent>
       </Card>
 
+      {/* Modals */}
       <IntroWizardModal
         open={showIntroWizard}
         onClose={() => setShowIntroWizard(false)}
         onContinue={handleContinueFromWizard}
       />
-
       <AddEditConnectorModal
         open={showAddEditModal}
         onClose={() => {
@@ -221,7 +255,6 @@ export function ConnectorsTable() {
         connector={selectedConnector}
         wizardData={wizardData}
       />
-
       <ConfirmDeleteDialog
         open={showDeleteDialog}
         onClose={() => {

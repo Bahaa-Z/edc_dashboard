@@ -6,7 +6,7 @@ const DEFAULT_ALLOWED = [
   "http://127.0.0.1:5173",
   "http://localhost:3000",
   "http://localhost:3001",
-  "http://localhost:3002",
+  "http://localhost:3001",
   "http://localhost:3030",
 ];
 

@@ -38,7 +38,7 @@ HOST=localhost npm run dev
 1. Make sure you have Node.js v20 installed (recommended)
 2. Install dependencies: `npm install`
 3. Start development server: `npm run dev`
-4. Open http://localhost:5000 in your browser
+4. Open http://localhost:3030 in your browser
 
 ## Features Available
 - Dashboard with KPI cards

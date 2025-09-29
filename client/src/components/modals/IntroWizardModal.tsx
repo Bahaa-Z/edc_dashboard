@@ -101,14 +101,8 @@ export function IntroWizardModal({ open, onClose, onContinue }: IntroWizardModal
 
   const canProceedToNext = () => isStepComplete(currentStep);
 
-  // Du kannst hier festlegen, was zum Abschluss minimal nötig ist.
-  // Beispiel: EDC muss ausgefüllt oder übersprungen sein; Registration optional.
   const canFinish = () => {
     const edcDone = isStepComplete(3);
-    // Wenn du Registrierung verpflichtend machen willst, dekommentiere:
-    // const edcRegDone = isStepComplete(4);
-    // return edcDone && edcRegDone;
-
     return edcDone; // Registrierung optional/überspringbar
   };
 
@@ -352,55 +346,66 @@ export function IntroWizardModal({ open, onClose, onContinue }: IntroWizardModal
 
           {/* Quick actions */}
           <div className="flex gap-2 mb-4">
-            <Button variant="outline" onClick={jumpToEdc}>
+            {/* <Button variant="outline" onClick={jumpToEdc}>
               Skip to EDC
-            </Button>
-            <Button
-              variant="outline"
-              onClick={skipCurrentStep}
-              className="ml-auto"
-            >
-              Skip this step
-            </Button>
+            </Button> */}
+            
           </div>
 
           {/* Content */}
           <div className="mb-6">{renderStepContent()}</div>
         </div>
+        <div className="flex justify-between items-center">
+  {/* Linke Actions */}
+  <div className="flex gap-2">
+    <Button variant="outline" onClick={handleClose} data-testid="wizard-cancel-button">
+      {t("cancel")}
+    </Button>
 
-        <div className="flex justify-between">
-          <div className="flex space-x-2">
-            <Button variant="outline" onClick={handleClose} data-testid="wizard-cancel-button">
-              {t("cancel")}
-            </Button>
-            {currentStep > 1 && (
-              <Button variant="outline" onClick={handlePrevious} data-testid="wizard-previous-button">
-                Previous
-              </Button>
-            )}
-          </div>
+    {currentStep > 1 && (
+      <Button
+        variant="outline"
+        onClick={handlePrevious}
+        data-testid="wizard-previous-button"
+      >
+        Previous
+      </Button>
+    )}
+  </div>
 
-          {/* Next / Complete */}
-          {currentStep < steps.length ? (
-            <Button
-              onClick={handleNext}
-              disabled={!canProceedToNext()}
-              className="bg-[var(--arena-orange)] hover:bg-[var(--arena-orange-hover)] text-white disabled:opacity-50"
-              data-testid="wizard-next-button"
-            >
-              Next
-            </Button>
-          ) : (
-            <Button
-              onClick={() => onContinue(stepData)}
-              disabled={!canFinish()}
-              className="bg-[var(--arena-orange)] hover:bg-[var(--arena-orange-hover)] text-white disabled:opacity-50"
-              data-testid="wizard-complete-button"
-            >
-              Complete Deployment
-            </Button>
-          )}
-        </div>
+  {/* Rechte Actions: Skip + Next / Complete */}
+  {currentStep < steps.length ? (
+    <div className="flex gap-2">
+      {/* ⬅️ Skip neben Next */}
+      <Button
+        variant="outline"
+        onClick={skipCurrentStep}
+        className="ml-auto"
+        data-testid="wizard-skip-button"
+      >
+        Skip
+      </Button>
+
+      <Button
+        onClick={handleNext}
+        disabled={!canProceedToNext()}
+        className="bg-[var(--arena-orange)] hover:bg-[var(--arena-orange-hover)] text-white disabled:opacity-50"
+        data-testid="wizard-next-button"
+      >
+        Next
+      </Button>
+    </div>
+  ) : (
+    <Button
+      onClick={() => onContinue(stepData)}
+      disabled={!canFinish()}
+      className="bg-[var(--arena-orange)] hover:bg-[var(--arena-orange-hover)] text-white disabled:opacity-50"
+      data-testid="wizard-complete-button"
+    >
+      Complete Deployment
+    </Button>
+  )}
+</div>
       </DialogContent>
     </Dialog>
   );

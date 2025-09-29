@@ -1,91 +1,112 @@
 import { useApp } from "@/context/AppContext";
+import { useState } from "react";
 import { KpiCards } from "@/components/dashboard/KpiCards";
 import { ConnectorsTable } from "@/components/dashboard/ConnectorsTable";
-import { TrendingUp, Activity, Shield } from "lucide-react";
+import { TrendingUp, Activity } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import EdcDetailDrawer, { EdcDetails } from "@/components/EdcDetailDrawer";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 
 export default function Dashboard() {
   const { t } = useApp();
+  const [selectedEdc, setSelectedEdc] = useState<EdcDetails | null>(null);
+
+  const { data: connectors = [] } = useQuery({
+    queryKey: ["/api/connectors"],
+    queryFn: api.getConnectors,
+  });
 
   return (
-    <div className="space-y-8 p-6 bg-gradient-to-br from-gray-50 to-white min-h-screen">
-      {/* Welcome Header with Gradient */}
-      <div className="bg-gradient-to-r from-[var(--arena-orange)] to-orange-500 rounded-xl p-8 text-white shadow-lg">
+    <div className="min-h-screen bg-white">
+      {/* Header */}
+      <div className="px-6 pt-6 pb-2">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold mb-2" data-testid="dashboard-title">
+            <h1 className="text-3xl font-bold text-gray-900 mb-1" data-testid="dashboard-title">
               {t("dashboard")}
             </h1>
-            <p className="text-orange-100 text-lg">
+            <p className="text-gray-600 text-base">
               {t("welcomeMessage")}
             </p>
           </div>
-          <div className="hidden md:flex items-center space-x-4">
-            <Activity className="h-12 w-12 text-orange-100" />
+          <div className="hidden md:flex items-center">
+            <Activity className="h-10 w-10 text-gray-400" />
           </div>
         </div>
       </div>
 
+      {/* Trennlinie */}
+      <div className="px-6">
+        <hr className="border-gray-200" />
+      </div>
+
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-white/80 backdrop-blur border-0 shadow-md hover:shadow-lg transition-all duration-200">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600 flex items-center">
+      <div className="px-6 pt-6 grid grid-cols-1 md:grid-cols-4 gap-6">
+        {/* Dataspace Card */}
+        <Card className="border border-orange-300 shadow-sm hover:shadow-md transition-shadow bg-orange-50">
+          <CardHeader className="pb-1">
+            <CardTitle className="text-sm font-medium text-orange-800">
+              🌐 Data Space
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-1">
+            <div className="text-2xl font-semibold text-orange-900">Catena-X</div>
+            <p className="text-xs text-orange-700 mt-1">Connected Environment</p>
+          </CardContent>
+        </Card>
+
+        {/* Connector Count Card */}
+        <Card className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="pb-1">
+            <CardTitle className="text-sm font-medium text-gray-700">
+              🔗 Connectors
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-1">
+            <div className="text-2xl font-semibold text-gray-900">{connectors.length}</div>
+            <p className="text-xs text-gray-500 mt-1">Total registered</p>
+          </CardContent>
+        </Card>
+
+        {/* System Health Card */}
+        <Card className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="pb-1">
+            <CardTitle className="text-sm font-medium text-gray-700 flex items-center">
               <TrendingUp className="h-4 w-4 mr-2 text-green-600" />
               {t("systemHealth")}
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{t("excellent")}</div>
+          <CardContent className="pt-1">
+            <div className="text-2xl font-semibold text-gray-900">{t("healthy")}</div>
             <p className="text-xs text-gray-500 mt-1">{t("allSystemsOperational")}</p>
           </CardContent>
         </Card>
-        
-        <Card className="bg-white/80 backdrop-blur border-0 shadow-md hover:shadow-lg transition-all duration-200">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600 flex items-center">
-              <Shield className="h-4 w-4 mr-2 text-blue-600" />
-              {t("securityStatus")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{t("secured")}</div>
-            <p className="text-xs text-gray-500 mt-1">{t("allConnectionsEncrypted")}</p>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-white/80 backdrop-blur border-0 shadow-md hover:shadow-lg transition-all duration-200">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600 flex items-center">
+
+        {/* Activity Card */}
+        <Card className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="pb-1">
+            <CardTitle className="text-sm font-medium text-gray-700 flex items-center">
               <Activity className="h-4 w-4 mr-2 text-[var(--arena-orange)]" />
               {t("activity")}
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-[var(--arena-orange)]">{t("active")}</div>
+          <CardContent className="pt-1">
+            <div className="text-2xl font-semibold text-gray-900">{t("active")}</div>
             <p className="text-xs text-gray-500 mt-1">{t("dataFlowsRunning")}</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Overview Section */}
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-800 flex items-center" data-testid="overview-title">
-            <TrendingUp className="h-6 w-6 mr-3 text-[var(--arena-orange)]" />
-            {t("overview")}
-          </h2>
-          <div className="text-sm text-gray-500">
-            Last updated: {new Date().toLocaleTimeString()}
-          </div>
-        </div>
-        <KpiCards />
+      {/* Connectors-Tabelle */}
+      <div className="px-6 py-8">
+        <ConnectorsTable onSelectEdc={(edc: EdcDetails) => setSelectedEdc(edc)} />
       </div>
 
-      {/* Connectors Table Section */}
-      <div className="space-y-4">
-        <ConnectorsTable />
-      </div>
+      {/* Detailansicht */}
+      {selectedEdc && (
+        <EdcDetailDrawer edc={selectedEdc} onClose={() => setSelectedEdc(null)} />
+      )}
     </div>
   );
 }

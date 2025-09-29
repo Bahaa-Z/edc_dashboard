@@ -52,6 +52,7 @@ export const translations = {
     welcomeMessage: 'Welcome to your EDC Management Console',
     systemHealth: 'System Health',
     excellent: 'Excellent',
+    healthy: 'Healthy',
     allSystemsOperational: 'All systems operational',
     securityStatus: 'Security Status',
     secured: 'Secured',

@@ -10,7 +10,7 @@ deploymentTarget = "autoscale"
 run = ["sh", "-c", "npm run dev"]
 
 [[ports]]
-localPort = 5000
+localPort = 3030
 externalPort = 80
 
 [[ports]]
@@ -18,7 +18,7 @@ localPort = 37113
 externalPort = 3000
 
 [env]
-PORT = "5000"
+PORT = "3030"
 
 [workflows]
 runButton = "Project"
@@ -39,7 +39,7 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm run dev"
-waitForPort = 5000
+waitForPort = 3030
 
 [agent]
 integrations = ["javascript_auth_all_persistance==1.0.0", "javascript_database==1.0.0"]

@@ -7,7 +7,7 @@ export default function Sde() {
   const { t } = useApp();
 
   const handleOpenSde = () => {
-    const sdeUrl = import.meta.env.VITE_SDE_URL || "http://localhost:3002";
+    const sdeUrl = import.meta.env.VITE_SDE_URL || "http://localhost:3001";
     window.open(sdeUrl, "_blank");
   };
 

@@ -7,7 +7,6 @@ import { Router } from "express";
 import { requireAuth } from "./auth-middleware";
 
 
-
 const router = Router();
 
 // GET alle Connectoren

@@ -21,8 +21,6 @@ const getIconForKpi = (key: string) => {
     assets: Database,
     policies: Shield,
     contracts: FileText,
-    contractAgreements: HandshakeIcon,
-    dataOffers: Package,
   };
   return icons[key as keyof typeof icons] || Server;
 };
@@ -33,8 +31,6 @@ const getColorForKpi = (key: string) => {
     assets: "text-green-600 bg-green-100", 
     policies: "text-purple-600 bg-purple-100",
     contracts: "text-orange-600 bg-orange-100",
-    contractAgreements: "text-pink-600 bg-pink-100",
-    dataOffers: "text-indigo-600 bg-indigo-100",
   };
   return colors[key as keyof typeof colors] || "text-blue-600 bg-blue-100";
 };
@@ -48,12 +44,10 @@ export function KpiCards() {
   });
 
   const kpiItems = [
-    { key: "numberOfConnectors", value: stats?.connectors, trend: "+12%" },
-    { key: "assets", value: stats?.assets, trend: "+8%" },
-    { key: "policies", value: stats?.policies, trend: "+5%" },
-    { key: "contracts", value: stats?.contracts, trend: "+15%" },
-    { key: "contractAgreements", value: stats?.contractAgreements, trend: "+3%" },
-    { key: "dataOffers", value: stats?.dataOffers, trend: "+20%" },
+    { key: "numberOfConnectors", value: stats?.connectors },
+    { key: "assets", value: stats?.assets },
+    { key: "policies", value: stats?.policies },
+    { key: "contracts", value: stats?.contracts },
   ];
 
   if (isLoading) {
@@ -111,19 +105,6 @@ export function KpiCards() {
                       {item.value ?? 0}
                     </p>
                   </div>
-                </div>
-                <div className="flex items-center text-green-600 text-sm font-medium">
-                  <ArrowUp className="h-4 w-4 mr-1" />
-                  {item.trend}
-                </div>
-              </div>
-              <div className="mt-4 bg-gray-50 rounded-lg p-2">
-                <div className="flex items-center justify-between text-xs text-gray-500">
-                  <span>vs last month</span>
-                  <span className="flex items-center text-green-600">
-                    <TrendingUp className="h-3 w-3 mr-1" />
-                    Growing
-                  </span>
                 </div>
               </div>
             </CardContent>
