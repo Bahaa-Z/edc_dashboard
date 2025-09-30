@@ -5,17 +5,11 @@ import { ConnectorsTable } from "@/components/dashboard/ConnectorsTable";
 import { TrendingUp, Activity } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import EdcDetailDrawer, { EdcDetails } from "@/components/EdcDetailDrawer";
-import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
 
 export default function Dashboard() {
   const { t } = useApp();
   const [selectedEdc, setSelectedEdc] = useState<EdcDetails | null>(null);
-
-  const { data: connectors = [] } = useQuery({
-    queryKey: ["/api/connectors"],
-    queryFn: api.getConnectors,
-  });
+  const [connectorCount, setConnectorCount] = useState(0);
 
   return (
     <div className="min-h-screen bg-white">
@@ -42,34 +36,8 @@ export default function Dashboard() {
       </div>
 
       {/* Quick Stats */}
-      <div className="px-6 pt-6 grid grid-cols-1 md:grid-cols-4 gap-6">
-        {/* Dataspace Card */}
-        <Card className="border border-orange-300 shadow-sm hover:shadow-md transition-shadow bg-orange-50">
-          <CardHeader className="pb-1">
-            <CardTitle className="text-sm font-medium text-orange-800">
-              🌐 Data Space
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-1">
-            <div className="text-2xl font-semibold text-orange-900">Catena-X</div>
-            <p className="text-xs text-orange-700 mt-1">Connected Environment</p>
-          </CardContent>
-        </Card>
-
-        {/* Connector Count Card */}
-        <Card className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-          <CardHeader className="pb-1">
-            <CardTitle className="text-sm font-medium text-gray-700">
-              🔗 Connectors
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-1">
-            <div className="text-2xl font-semibold text-gray-900">{connectors.length}</div>
-            <p className="text-xs text-gray-500 mt-1">Total registered</p>
-          </CardContent>
-        </Card>
-
-        {/* System Health Card */}
+      <div className="px-6 pt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* System Health */}
         <Card className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="pb-1">
             <CardTitle className="text-sm font-medium text-gray-700 flex items-center">
@@ -83,29 +51,48 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Activity Card */}
+        {/* Number of Connectors */}
         <Card className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="pb-1">
             <CardTitle className="text-sm font-medium text-gray-700 flex items-center">
-              <Activity className="h-4 w-4 mr-2 text-[var(--arena-orange)]" />
-              {t("activity")}
+              <TrendingUp className="h-4 w-4 mr-2 text-blue-600" />
+              {t("numberOfConnectors")}
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-1">
-            <div className="text-2xl font-semibold text-gray-900">{t("active")}</div>
-            <p className="text-xs text-gray-500 mt-1">{t("dataFlowsRunning")}</p>
+            <div className="text-2xl font-semibold text-gray-900">{connectorCount}</div>
+            <p className="text-xs text-gray-500 mt-1">{t("connectorsRegistered")}</p>
+          </CardContent>
+        </Card>
+
+        {/* Data Space Info */}
+        <Card className="border border-orange-300 bg-orange-50 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="pb-1">
+            <CardTitle className="text-sm font-medium text-orange-800 flex items-center">
+              <TrendingUp className="h-4 w-4 mr-2 text-orange-500" />
+              {t("dataSpace")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-1">
+            <div className="text-2xl font-semibold text-orange-900">Catena-X</div>
+            <p className="text-xs text-orange-800 mt-1">{t("dataSpaceLabel")}</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Connectors-Tabelle */}
       <div className="px-6 py-8">
-        <ConnectorsTable onSelectEdc={(edc: EdcDetails) => setSelectedEdc(edc)} />
+        <ConnectorsTable
+          onSelectEdc={(edc: EdcDetails) => setSelectedEdc(edc)}
+          onCountChange={(count: number) => setConnectorCount(count)}
+        />
       </div>
 
-      {/* Detailansicht */}
+      {/* Detailansicht: Jetzt mittig statt seitlich */}
       {selectedEdc && (
-        <EdcDetailDrawer edc={selectedEdc} onClose={() => setSelectedEdc(null)} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <EdcDetailDrawer edc={selectedEdc} onClose={() => setSelectedEdc(null)} />
+        </div>
       )}
     </div>
   );

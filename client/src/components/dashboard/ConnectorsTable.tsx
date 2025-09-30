@@ -263,6 +263,7 @@ export function ConnectorsTable({ onSelectEdc }: { onSelectEdc?: (edc: EdcDetail
         }}
         onConfirm={confirmDelete}
         isLoading={deleteMutation.isPending}
+        
       />
     </>
   );

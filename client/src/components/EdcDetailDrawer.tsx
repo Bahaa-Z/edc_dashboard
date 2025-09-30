@@ -1,8 +1,5 @@
-// components/EdcDetailDrawer.tsx
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Copy } from "lucide-react";
-import { useState } from "react";
+import { X } from "lucide-react";
+import { useEffect } from "react";
 
 export type EdcDetails = {
   name: string;
@@ -18,86 +15,89 @@ export type EdcDetails = {
 };
 
 type Props = {
-  edc: EdcDetails | null;
+  edc: EdcDetails;
   onClose: () => void;
 };
 
 export default function EdcDetailDrawer({ edc, onClose }: Props) {
-  const [showYaml, setShowYaml] = useState(false);
-
-  if (!edc) return null;
+  // Escape zum Schließen
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, [onClose]);
 
   return (
-    <Dialog open={!!edc} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl max-h-screen overflow-y-auto">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold text-gray-900">EDC: {edc.name}</h2>
-          <button
-            className="text-sm text-blue-600 hover:underline"
-            onClick={() => setShowYaml((prev) => !prev)}
-          >
-            {showYaml ? "View Info" : "View YAML"}
-          </button>
+    <div className="fixed top-0 right-0 w-full max-w-md h-full bg-white shadow-lg border-l z-50 overflow-y-auto">
+      <div className="flex items-center justify-between p-4 border-b">
+        <h2 className="text-lg font-semibold text-gray-800">EDC Details</h2>
+        <button onClick={onClose}>
+          <X className="h-5 w-5 text-gray-500 hover:text-red-500" />
+        </button>
+      </div>
+
+      <div className="p-4 space-y-4">
+        <div>
+          <p className="text-sm text-gray-600">Name</p>
+          <p className="font-medium text-gray-900">{edc.name}</p>
         </div>
 
-        {showYaml ? (
-          <pre className="bg-gray-100 p-4 rounded-md text-xs overflow-auto max-h-[60vh]">
+        <div>
+          <p className="text-sm text-gray-600">Status</p>
+          <p className="font-medium text-gray-900">{edc.status}</p>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <p className="text-sm text-gray-600">Assets</p>
+            <p className="font-medium text-gray-900">{edc.assetCount}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">Policies</p>
+            <p className="font-medium text-gray-900">{edc.policyCount}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">Contracts</p>
+            <p className="font-medium text-gray-900">{edc.contractCount}</p>
+          </div>
+        </div>
+
+        <div>
+          <p className="text-sm text-gray-600">Version</p>
+          <p className="font-medium text-gray-900">{edc.version}</p>
+        </div>
+
+        <div>
+          <p className="text-sm text-gray-600">BPN</p>
+          <p className="font-medium text-gray-900">{edc.bpn}</p>
+        </div>
+
+        <div>
+          <p className="text-sm text-gray-600">URL</p>
+          <p className="font-medium text-blue-600">{edc.url}</p>
+        </div>
+
+        <div>
+          <p className="text-sm text-gray-600">Data Space</p>
+          <p className="font-medium text-gray-900">{edc.dataSpace}</p>
+        </div>
+
+        {/* YAML View + Actions */}
+        <div className="pt-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-medium text-gray-700">YAML View</p>
+            <div className="space-x-2">
+              <button className="text-sm text-blue-600 hover:underline">Edit</button>
+              <button className="text-sm text-red-600 hover:underline">Delete</button>
+            </div>
+          </div>
+          <pre className="bg-gray-100 text-xs text-gray-800 p-3 rounded border whitespace-pre-wrap overflow-x-auto">
             {edc.yaml}
           </pre>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card>
-              <CardHeader><CardTitle>Name</CardTitle></CardHeader>
-              <CardContent>{edc.name}</CardContent>
-            </Card>
-            <Card>
-              <CardHeader><CardTitle>Status</CardTitle></CardHeader>
-              <CardContent>{edc.status}</CardContent>
-            </Card>
-            <Card>
-              <CardHeader><CardTitle>EDC Version</CardTitle></CardHeader>
-              <CardContent>{edc.version}</CardContent>
-            </Card>
-            <Card>
-              <CardHeader><CardTitle># of Assets</CardTitle></CardHeader>
-              <CardContent>{edc.assetCount}</CardContent>
-            </Card>
-            <Card>
-              <CardHeader><CardTitle># of Policies</CardTitle></CardHeader>
-              <CardContent>{edc.policyCount}</CardContent>
-            </Card>
-            <Card>
-              <CardHeader><CardTitle># of Contracts</CardTitle></CardHeader>
-              <CardContent>{edc.contractCount}</CardContent>
-            </Card>
-
-            <Card className="col-span-1 md:col-span-3">
-              <CardHeader><CardTitle>EDC URL</CardTitle></CardHeader>
-              <CardContent className="flex justify-between items-center">
-                <code className="text-xs text-gray-700 break-all">{edc.url}</code>
-                <button onClick={() => navigator.clipboard.writeText(edc.url)}>
-                  <Copy size={16} />
-                </button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader><CardTitle>BPN</CardTitle></CardHeader>
-              <CardContent className="flex justify-between items-center">
-                <code className="text-xs text-gray-700">{edc.bpn}</code>
-                <button onClick={() => navigator.clipboard.writeText(edc.bpn)}>
-                  <Copy size={16} />
-                </button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader><CardTitle>Data Space</CardTitle></CardHeader>
-              <CardContent className="text-xs text-gray-700">{edc.dataSpace}</CardContent>
-            </Card>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </div>
   );
 }
